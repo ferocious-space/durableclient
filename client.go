@@ -18,9 +18,8 @@ var registryMU sync.RWMutex
 var clientRegistry map[string]*http.Client
 
 type rClient struct {
-	client     *hystrix.Client
-	agent      string
-	transports []*http.Transport
+	client *hystrix.Client
+	agent  string
 }
 
 type innerClient struct {
@@ -67,24 +66,25 @@ func NewClient(name string, agent string, logger *zap.Logger) *http.Client {
 			Transport: &rClient{
 				agent: agent,
 				client: hystrix.NewClient(
-					hystrix.WithHTTPTimeout(300*time.Millisecond),
-					hystrix.WithHystrixTimeout(1000*time.Millisecond),
+					hystrix.WithHTTPTimeout(450*time.Millisecond),
+					hystrix.WithHystrixTimeout(550*time.Millisecond),
 					hystrix.WithCommandName(name),
-					// stop requets if 5% of the fail which is around 50 requests
-					hystrix.WithErrorPercentThreshold(5),
+					// stop requets if 50% of them fail which is around 50 requests
+					hystrix.WithErrorPercentThreshold(50),
 					// max concurrent requets of type
-					hystrix.WithMaxConcurrentRequests(1000),
+					hystrix.WithMaxConcurrentRequests(100),
+					hystrix.WithRequestVolumeThreshold(20),
 					hystrix.WithRetryCount(3),
 					hystrix.WithRetrier(
 						heimdall.NewRetrier(
-							heimdall.NewExponentialBackoff(200*time.Millisecond, 5*time.Second, math.SqrtPi, 10*time.Millisecond),
+							heimdall.NewExponentialBackoff(200*time.Millisecond, 5*time.Second, math.SqrtPi, 50*time.Millisecond),
 						),
 					),
 					// time to sleep when circuit open - 1 min
 					hystrix.WithSleepWindow(60000),
 					hystrix.WithHTTPClient(&innerClient{
 						Doer:   httpclient.NewClient(),
-						logger: logger.Named("hystrix"),
+						logger: logger.Named("hystrix").WithOptions(zap.AddCallerSkip(1)),
 					}),
 				),
 			},
