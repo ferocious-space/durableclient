@@ -5,13 +5,16 @@ import (
 	"io/ioutil"
 	"math"
 	"net/http"
+	"net/http/cookiejar"
 	"sync"
 	"time"
 
+	"github.com/ferocious-space/httpcache"
 	"github.com/gojektech/heimdall/v6"
 	"github.com/gojektech/heimdall/v6/httpclient"
 	"github.com/gojektech/heimdall/v6/hystrix"
 	"go.uber.org/zap"
+	"golang.org/x/net/publicsuffix"
 )
 
 var registryMU sync.RWMutex
@@ -51,6 +54,22 @@ func (r *innerClient) Do(req *http.Request) (rsp *http.Response, err error) {
 		}
 	}
 	return rsp, err
+}
+
+func NewCachedTransport(name string, agent string, cache httpcache.Cache, logger *zap.Logger) *http.Client {
+	httpClient := NewClient(name, agent, logger)
+	jar, err := cookiejar.New(&cookiejar.Options{
+		PublicSuffixList: publicsuffix.List,
+	})
+	if err != nil {
+		return nil
+	}
+	transport := httpcache.NewTransport(cache)
+	transport.Transport = httpClient.Transport
+	return &http.Client{
+		Transport: transport,
+		Jar:       jar,
+	}
 }
 
 func NewClient(name string, agent string, logger *zap.Logger) *http.Client {
