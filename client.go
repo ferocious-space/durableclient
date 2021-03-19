@@ -22,7 +22,7 @@ func NewCachedClient(agent string, cache httpcache.Cache, logger *zap.Logger) *h
 	}
 
 	httpClient := retryablehttp.NewClient()
-	httpClient.Logger = newLogger(logger)
+	httpClient.Logger = newLogger(logger.WithOptions(zap.AddCallerSkip(1)))
 
 	httpClient.Backoff = retryablehttp.LinearJitterBackoff
 	httpClient.RetryMax = 3

@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	lgr := zap.NewExample()
+	lgr, _ := zap.NewDevelopment()
 	cli := durableclient.NewCachedClient("test", httpcache.NewLRUCache(1<<20*50, 600), lgr.Named("cached"))
 	cli2 := durableclient.NewClient("test2", lgr.Named("noncached"))
 	a, e := cli.Get("https://scalewp.io")
