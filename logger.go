@@ -10,7 +10,7 @@ type privateLogger struct {
 }
 
 func newLogger(logger *zap.Logger) retryablehttp.LeveledLogger {
-	return &privateLogger{Logger: logger.WithOptions(zap.AddCallerSkip(10))}
+	return &privateLogger{Logger: logger}
 }
 
 func (l *privateLogger) Error(msg string, keysAndValues ...interface{}) {
