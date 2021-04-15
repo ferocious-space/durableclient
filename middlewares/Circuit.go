@@ -25,7 +25,12 @@ type circuitMap struct {
 
 func (m *circuitMap) Get(name string) (crc *circuit.Circuit, err error) {
 	if data, ok := m.m.Load(name); !ok {
-		crc, err = getManager().CreateCircuit(name)
+		crc, err = getManager().CreateCircuit(name, circuit.Config{
+			Execution: circuit.ExecutionConfig{
+				Timeout:               -1,
+				MaxConcurrentRequests: 50,
+			},
+		})
 		if err != nil {
 			return nil, err
 		}
