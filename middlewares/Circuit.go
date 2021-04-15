@@ -2,9 +2,7 @@ package middlewares
 
 import (
 	"context"
-	"fmt"
 	"net/http"
-	"net/http/httputil"
 	"sync"
 	"time"
 
@@ -101,8 +99,6 @@ func (c CircuitMiddleware) Middleware(maxErrors int64, rollingDuration time.Dura
 				})
 			}
 			rs := stats.RunStats(request.Host)
-			rspBin, _ := httputil.DumpResponse(result, false)
-			fmt.Println(string(rspBin))
 			log.V(1).Info("Circuit", "Name", crc.Name(), "URI", request.URL.RequestURI(), "L95p", rs.Latencies.Snapshot().Percentile(0.95), "E", rs.ErrFailures.RollingSum(), "T", rs.ErrTimeouts.RollingSum())
 			return result, err
 
