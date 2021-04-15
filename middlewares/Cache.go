@@ -1,17 +1,27 @@
 package middlewares
 
 import (
+	"context"
 	"net/http"
 
+	"github.com/ferocious-space/durableclient/chains"
 	"github.com/ferocious-space/httpcache"
-
-	"github.com/ferocious-space/durableclient/httpware"
+	"github.com/go-logr/logr"
 )
 
-func Cache(cache httpcache.Cache) httpware.Tripperware {
+func newCache(cache httpcache.Cache) chains.Middleware {
 	return func(next http.RoundTripper) http.RoundTripper {
 		transport := httpcache.NewTransport(cache)
 		transport.Transport = next
-		return transport
+		return chains.RoundTripFunc(
+			func(request *http.Request) (*http.Response, error) {
+				log := logr.FromContext(request.Context()).WithName("cache")
+				log.V(1).Info("Cache()")
+				return transport.RoundTrip(request)
+			})
 	}
+}
+
+func Cache(ctx context.Context, cache httpcache.Cache) chains.Chain {
+	return chains.NewChain(Drainer(ctx), newCache(cache))
 }

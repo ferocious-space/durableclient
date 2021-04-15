@@ -1,23 +1,30 @@
 package durableclient
 
 import (
+	"context"
 	"net/http"
+	"time"
 
-	"github.com/ferocious-space/httpcache"
-	"go.uber.org/zap"
+	"github.com/go-logr/logr"
+	"github.com/hashicorp/go-cleanhttp"
 
-	"github.com/ferocious-space/durableclient/httpware"
 	"github.com/ferocious-space/durableclient/middlewares"
 )
 
-func NewCachedClient(agent string, cache httpcache.Cache, logger *zap.Logger) *http.Client {
-	client := httpware.CloneClient()
-	client.Logger = newLogger(logger.WithOptions(zap.AddCallerSkip(13)))
-	return httpware.TripperwareStack(middlewares.Drainer(), middlewares.Cache(cache), middlewares.Agent(agent)).DecorateClient(client.StandardClient(), false)
+func NewDurableClient(ctx context.Context, logger logr.Logger, agent string) *DurableClient {
+	return &DurableClient{ctx: ctx, logger: logger, agent: agent}
 }
 
-func NewClient(agent string, logger *zap.Logger) *http.Client {
-	client := httpware.CloneClient()
-	client.Logger = newLogger(logger.WithOptions(zap.AddCallerSkip(12)))
-	return httpware.TripperwareStack(middlewares.Drainer(), middlewares.Agent(agent)).DecorateClient(client.StandardClient(), false)
+func (c *DurableClient) Client() *http.Client {
+	client := new(http.Client)
+	if c.pooled {
+		client = cleanhttp.DefaultPooledClient()
+	} else {
+		client = cleanhttp.DefaultClient()
+	}
+	c.ctx = logr.NewContext(c.ctx, c.logger)
+	if c.cache == nil {
+		return middlewares.Drainer(c.ctx).ThenMiddleware(middlewares.Agent(c.agent)).ExtendWith(middlewares.NewCircuitMiddleware().Middleware(80, time.Second*60)).ThenClient(client, true)
+	}
+	return middlewares.Cache(c.ctx, c.cache).ExtendWith(middlewares.Agent(c.agent), middlewares.NewCircuitMiddleware().Middleware(80, time.Second*60)).ThenClient(client, true)
 }
