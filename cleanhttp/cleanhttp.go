@@ -25,8 +25,9 @@ func DefaultPooledTransport() *http.Transport {
 	transport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
+			Timeout:       30 * time.Second,
+			FallbackDelay: -1,
+			KeepAlive:     30 * time.Second,
 		}).DialContext,
 		MaxIdleConns:          100,
 		IdleConnTimeout:       90 * time.Second,

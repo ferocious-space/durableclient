@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ferocious-space/durableclient/cleanhttp"
 	"github.com/go-logr/logr"
-	"github.com/hashicorp/go-cleanhttp"
 
 	"github.com/ferocious-space/durableclient/middlewares"
 )
