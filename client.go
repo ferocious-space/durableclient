@@ -15,12 +15,12 @@ func NewDurableClient(ctx context.Context, logger logr.Logger, agent string) *Du
 	return &DurableClient{ctx: ctx, logger: logger, agent: agent}
 }
 
-func (c *DurableClient) Client() *http.Client {
+func (c *DurableClient) Client(disableHTTP2 ...bool) *http.Client {
 	client := new(http.Client)
 	if c.pooled {
-		client = cleanhttp.DefaultPooledClient()
+		client = cleanhttp.DefaultPooledClient(disableHTTP2...)
 	} else {
-		client = cleanhttp.DefaultClient()
+		client = cleanhttp.DefaultClient(disableHTTP2...)
 	}
 	c.ctx = logr.NewContext(c.ctx, c.logger)
 	if c.cache == nil {
