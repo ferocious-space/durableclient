@@ -2,13 +2,15 @@ package middlewares
 
 import (
 	"context"
+	"crypto/x509"
 	"net/http"
+	"regexp"
 	"sync"
 	"time"
 
-	"github.com/cep21/circuit/metrics/rolling"
 	"github.com/cep21/circuit/v3"
 	"github.com/cep21/circuit/v3/closers/hystrix"
+	"github.com/cep21/circuit/v3/metrics/rolling"
 	"github.com/ferocious-space/durableclient/chains"
 	"github.com/go-logr/logr"
 )
@@ -75,6 +77,11 @@ func NewCircuitMiddleware() *CircuitMiddleware {
 	return &CircuitMiddleware{}
 }
 
+var (
+	redirectsErrorRe = regexp.MustCompile(`stopped after \d+ redirects\z`)
+	schemeErrorRe    = regexp.MustCompile(`unsupported protocol scheme`)
+)
+
 func (c CircuitMiddleware) Middleware(maxErrors int64, rollingDuration time.Duration) chains.Middleware {
 	return func(next http.RoundTripper) http.RoundTripper {
 		return chains.RoundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -84,14 +91,32 @@ func (c CircuitMiddleware) Middleware(maxErrors int64, rollingDuration time.Dura
 			if err != nil {
 				return nil, err
 			}
-			result := new(http.Response)
+
+			result := make(chan *http.Response, 1)
 			err = crc.Execute(request.Context(), func(ctx context.Context) error {
+				defer close(result)
 				rsp, err := next.RoundTrip(request.Clone(ctx))
-				result = rsp
-				return err
-			}, func(ctx context.Context, err error) error {
+				result <- rsp
+				if err != nil {
+					if redirectsErrorRe.MatchString(err.Error()) {
+						return &circuit.SimpleBadRequest{
+							Err: err,
+						}
+					}
+					if schemeErrorRe.MatchString(err.Error()) {
+						return &circuit.SimpleBadRequest{
+							Err: err,
+						}
+					}
+					if _, ok := err.(x509.UnknownAuthorityError); ok {
+						return &circuit.SimpleBadRequest{
+							Err: err,
+						}
+					}
+					return err
+				}
 				return nil
-			})
+			}, nil)
 			config := crc.ClosedToOpen.(*hystrix.Opener).Config()
 			if config.RequestVolumeThreshold != maxErrors {
 				crc.ClosedToOpen.(*hystrix.Opener).SetConfigThreadSafe(hystrix.ConfigureOpener{
@@ -104,8 +129,9 @@ func (c CircuitMiddleware) Middleware(maxErrors int64, rollingDuration time.Dura
 				})
 			}
 			rs := stats.RunStats(request.Host)
+			res := <-result
 			log.V(1).Info("Circuit", "Name", crc.Name(), "URI", request.URL.RequestURI(), "L95p", rs.Latencies.Snapshot().Percentile(0.95), "E", rs.ErrFailures.RollingSum(), "T", rs.ErrTimeouts.RollingSum())
-			return result, err
+			return res, err
 
 			// return next.RoundTrip(request)
 		})

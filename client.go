@@ -15,16 +15,29 @@ func NewDurableClient(ctx context.Context, logger logr.Logger, agent string) *Du
 	return &DurableClient{ctx: ctx, logger: logger, agent: agent}
 }
 
-func (c *DurableClient) Client(disableHTTP2 ...bool) *http.Client {
+func (c *DurableClient) Client(opt ...ClientOptions) *http.Client {
+	for _, o := range opt {
+		o(c)
+	}
 	client := new(http.Client)
 	if c.pooled {
-		client = cleanhttp.DefaultPooledClient(disableHTTP2...)
+		client = cleanhttp.DefaultPooledClient(cleanhttp.WithHTTP2Disabled())
 	} else {
-		client = cleanhttp.DefaultClient(disableHTTP2...)
+		client = cleanhttp.DefaultClient(cleanhttp.WithHTTP2Disabled())
 	}
 	c.ctx = logr.NewContext(c.ctx, c.logger)
 	if c.cache == nil {
-		return middlewares.Drainer(c.ctx).ThenMiddleware(middlewares.Agent(c.agent)).ExtendWith(middlewares.NewCircuitMiddleware().Middleware(80, time.Second*60)).ThenClient(client, true)
+		return middlewares.Drainer(c.ctx).
+			ThenMiddleware(middlewares.Agent(c.agent)).
+			ExtendWith(
+				middlewares.Enable(c.retrier, middlewares.Retrier(5)),
+				middlewares.NewCircuitMiddleware().Middleware(80, time.Second*60),
+			).ThenClient(client, true)
 	}
-	return middlewares.Cache(c.ctx, c.cache).ExtendWith(middlewares.Agent(c.agent), middlewares.NewCircuitMiddleware().Middleware(80, time.Second*60)).ThenClient(client, true)
+	return middlewares.Cache(c.ctx, c.cache).
+		ExtendWith(
+			middlewares.Agent(c.agent),
+			middlewares.Enable(c.retrier, middlewares.Retrier(5)),
+			middlewares.NewCircuitMiddleware().Middleware(80, time.Second*60),
+		).ThenClient(client, true)
 }

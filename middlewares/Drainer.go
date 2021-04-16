@@ -3,6 +3,7 @@ package middlewares
 import (
 	"bytes"
 	"context"
+	"io"
 	"io/ioutil"
 	"net/http"
 
@@ -15,27 +16,36 @@ func Drainer(ctx context.Context) chains.Middleware {
 		return chains.RoundTripFunc(
 			func(request *http.Request) (*http.Response, error) {
 				log := logr.FromContext(ctx).WithName("drainer")
-				log.V(1).Info("Drainer()")
-				if request.Body != nil {
-					reqBody, err := ioutil.ReadAll(request.Body)
+				req, err := FromRequest(request)
+				if err != nil {
+					return nil, err
+				}
+				if req.Body != nil {
+					reqBody, err := req.body()
 					if err != nil {
-						request.Body.Close()
 						return nil, err
 					}
-					request.Body.Close()
-					request.Body = ioutil.NopCloser(bytes.NewBuffer(reqBody))
+					if c, ok := reqBody.(io.ReadCloser); ok {
+						req.Body = c
+					} else {
+						req.Body = ioutil.NopCloser(reqBody)
+					}
 
 				}
-				rsp, err := next.RoundTrip(request.Clone(ctx))
+				rsp, err := next.RoundTrip(request.WithContext(ctx))
 				if err != nil {
+					log.Error(err, "roundtrip()")
 					return nil, err
 				}
-				body, err := ioutil.ReadAll(rsp.Body)
-				if err != nil {
-					return nil, err
+				if rsp != nil && rsp.Body != nil {
+					body, err := ioutil.ReadAll(rsp.Body)
+					if err != nil {
+						log.Error(err, "reading response body")
+						return nil, err
+					}
+					rsp.Body.Close()
+					rsp.Body = ioutil.NopCloser(bytes.NewBuffer(body))
 				}
-				rsp.Body.Close()
-				rsp.Body = ioutil.NopCloser(bytes.NewBuffer(body))
 				return rsp, nil
 			})
 	}

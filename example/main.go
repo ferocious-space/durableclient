@@ -16,10 +16,12 @@ func main() {
 	log := zapr.NewLogger(zaplog).WithName("main")
 
 	url := "https://esi.evetech.net/latest/characters/90126489/?datasource=tranquility"
-	dc := durableclient.NewDurableClient(context.Background(), log.WithName("httpClient"), "test")
-	c := dc.Client()
+	vctx := context.WithValue(context.Background(), "test", "value")
+	dc := durableclient.NewDurableClient(vctx, log.WithName("httpClient"), "test")
+	clonedC := dc.Clone()
+
 	ccache := dc.WithCache(httpcache.NewLRUCache(1<<20*50, 600)).Client()
-	cc := dc.WithPool(true).Client()
+	c := clonedC.WithPool(true).Client(durableclient.WithContext(context.Background()), durableclient.WithRetrier())
 
 	b := int64(0)
 	log.Info("NO Cache Transport")
@@ -43,7 +45,7 @@ func main() {
 	}
 
 	log.Info("Cache Transport")
-	rc, ec = cc.Get(url)
+	rc, ec = ccache.Get(url)
 	if ec != nil {
 		log.Error(ec, "Get")
 	} else {

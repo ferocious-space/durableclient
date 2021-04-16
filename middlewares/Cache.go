@@ -6,7 +6,6 @@ import (
 
 	"github.com/ferocious-space/durableclient/chains"
 	"github.com/ferocious-space/httpcache"
-	"github.com/go-logr/logr"
 )
 
 func newCache(cache httpcache.Cache) chains.Middleware {
@@ -15,8 +14,6 @@ func newCache(cache httpcache.Cache) chains.Middleware {
 		transport.Transport = next
 		return chains.RoundTripFunc(
 			func(request *http.Request) (*http.Response, error) {
-				log := logr.FromContext(request.Context()).WithName("cache")
-				log.V(1).Info("Cache()")
 				return transport.RoundTrip(request)
 			})
 	}
