@@ -11,8 +11,8 @@ import (
 	"github.com/ferocious-space/durableclient/middlewares"
 )
 
-func NewDurableClient(ctx context.Context, logger logr.Logger, agent string) *DurableClient {
-	return &DurableClient{ctx: ctx, logger: logger, agent: agent, http2: true}
+func NewDurableClient(logger logr.Logger, agent string) *DurableClient {
+	return &DurableClient{ctx: context.Background(), logger: logger, agent: agent, http2: true}
 }
 
 func (c *DurableClient) Client(opt ...ClientOptions) *http.Client {
