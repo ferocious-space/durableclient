@@ -20,8 +20,8 @@ func main() {
 	dc := durableclient.NewDurableClient(vctx, log.WithName("httpClient"), "test")
 	clonedC := dc.Clone()
 
-	ccache := dc.WithCache(httpcache.NewLRUCache(1<<20*50, 600)).Client()
-	c := clonedC.WithPool(true).Client(durableclient.WithContext(context.Background()), durableclient.WithRetrier())
+	ccache := dc.Client(durableclient.OptionCache(httpcache.NewLRUCache(1<<20*50, 600)))
+	c := clonedC.Client(durableclient.OptionContext(context.Background()), durableclient.OptionRetrier(), durableclient.OptionConnectionPooling())
 
 	b := int64(0)
 	log.Info("NO Cache Transport")

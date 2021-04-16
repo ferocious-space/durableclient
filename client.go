@@ -12,7 +12,7 @@ import (
 )
 
 func NewDurableClient(ctx context.Context, logger logr.Logger, agent string) *DurableClient {
-	return &DurableClient{ctx: ctx, logger: logger, agent: agent}
+	return &DurableClient{ctx: ctx, logger: logger, agent: agent, http2: true}
 }
 
 func (c *DurableClient) Client(opt ...ClientOptions) *http.Client {
@@ -21,9 +21,17 @@ func (c *DurableClient) Client(opt ...ClientOptions) *http.Client {
 	}
 	client := new(http.Client)
 	if c.pooled {
-		client = cleanhttp.DefaultPooledClient(cleanhttp.WithHTTP2Disabled())
+		if c.http2 {
+			client = cleanhttp.DefaultPooledClient()
+		} else {
+			client = cleanhttp.DefaultPooledClient(cleanhttp.WithHTTP2Disabled())
+		}
 	} else {
-		client = cleanhttp.DefaultClient(cleanhttp.WithHTTP2Disabled())
+		if c.http2 {
+			client = cleanhttp.DefaultClient()
+		} else {
+			client = cleanhttp.DefaultClient(cleanhttp.WithHTTP2Disabled())
+		}
 	}
 	c.ctx = logr.NewContext(c.ctx, c.logger)
 	if c.cache == nil {

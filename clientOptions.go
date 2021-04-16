@@ -8,27 +8,33 @@ import (
 
 type ClientOptions func(c *DurableClient)
 
-// WithCache attaches HTTPCache to the client
-func WithCache(cache httpcache.Cache) ClientOptions {
+// OptionCache attaches HTTPCache to the client
+func OptionCache(cache httpcache.Cache) ClientOptions {
 	return func(c *DurableClient) {
 		c.SetCache(cache)
 	}
 }
 
-func WithConnectionPooling(pooling bool) ClientOptions {
+func OptionConnectionPooling() ClientOptions {
 	return func(c *DurableClient) {
-		c.SetPooled(pooling)
+		c.SetPooled(true)
 	}
 }
 
-func WithContext(ctx context.Context) ClientOptions {
+func OptionContext(ctx context.Context) ClientOptions {
 	return func(c *DurableClient) {
 		c.SetCtx(ctx)
 	}
 }
 
-func WithRetrier() ClientOptions {
+func OptionRetrier() ClientOptions {
 	return func(c *DurableClient) {
 		c.SetRetrier(true)
+	}
+}
+
+func OptionHTTP2Disabled() ClientOptions {
+	return func(c *DurableClient) {
+		c.SetHttp2(false)
 	}
 }

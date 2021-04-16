@@ -7,6 +7,15 @@ import (
 	"github.com/go-logr/logr"
 )
 
+type cloneClient struct {
+	*DurableClient
+}
+
+func (x *cloneClient) Clone() *DurableClient {
+	c := *x.DurableClient
+	return &c
+}
+
 type DurableClient struct {
 	ctx     context.Context
 	logger  logr.Logger
@@ -14,6 +23,11 @@ type DurableClient struct {
 	cache   httpcache.Cache
 	pooled  bool
 	retrier bool
+	http2   bool
+}
+
+func (c *DurableClient) SetHttp2(http2 bool) {
+	c.http2 = http2
 }
 
 func (c *DurableClient) SetRetrier(retrier bool) {
@@ -33,25 +47,6 @@ func (c *DurableClient) SetPooled(pooled bool) {
 }
 
 func (c *DurableClient) Clone() *DurableClient {
-	cloned := CloneClient{c}
+	cloned := cloneClient{c}
 	return cloned.Clone()
-}
-
-func (c *DurableClient) WithCache(cache httpcache.Cache) *DurableClient {
-	c.SetCache(cache)
-	return c
-}
-
-func (c *DurableClient) WithPool(pool bool) *DurableClient {
-	c.SetPooled(pool)
-	return c
-}
-
-type CloneClient struct {
-	*DurableClient
-}
-
-func (x *CloneClient) Clone() *DurableClient {
-	c := *x.DurableClient
-	return &c
 }
