@@ -8,9 +8,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ferocious-space/durableclient/chains"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+
+	"github.com/ferocious-space/durableclient/chains"
 )
 
 func Retrier(maxRetry int) chains.Middleware {
@@ -50,7 +51,7 @@ func Retrier(maxRetry int) chains.Middleware {
 					}
 
 					when := DefaultBackoff(time.Duration(300)*time.Millisecond, time.Duration(3)*time.Second, i, rsp)
-					log.V(1).Error(errRT, "retry", "in", when, "uri", request.URL.RequestURI(), "lastStatus", rsp.StatusCode)
+					log.V(1).Error(errRT, "retry", "in", when, "uri", request.URL.RequestURI())
 
 					select {
 					case <-request.Context().Done():

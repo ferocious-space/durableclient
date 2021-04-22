@@ -28,7 +28,6 @@ func main() {
 	retryClient := dc.Clone(durableclient.OptionConnectionPooling())
 	downloadClient := dc.Clone()
 
-	dc.HttpClient().Get("https://esi.evetech.net/latest/characters/90126489/?datasource=tranquility")
 	dc.Get("https://esi.evetech.net/latest/characters/90126489/?datasource=tranquility")
 	f, err := os.Create("sde.zip")
 	if err != nil {
