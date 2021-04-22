@@ -58,12 +58,6 @@ func (c *DurableClient) Clone(opt ...ClientOptions) *DurableClient {
 	return client
 }
 
-func (c *DurableClient) HttpClient() *http.Client {
-	return &http.Client{
-		Transport: c.Transport,
-	}
-}
-
 // func (c *DurableClient) httpDo(ctx context.Context, req *http.Request, f func(resp *http.Response, err error) error) error {
 // 	ch := make(chan error, 1)
 // 	req = req.WithContext(ctx)
