@@ -33,7 +33,7 @@ func Drainer(ctx context.Context) chains.Middleware {
 					}
 
 				}
-				rsp, err := next.RoundTrip(request.WithContext(ctx))
+				rsp, err := next.RoundTrip(req.WithContext(ctx).Request)
 				if err != nil {
 					log.Error(err, "roundtrip()")
 					return nil, err

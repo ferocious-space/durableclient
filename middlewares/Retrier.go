@@ -3,6 +3,8 @@ package middlewares
 import (
 	"context"
 	"crypto/x509"
+	"io"
+	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -31,6 +33,19 @@ func Retrier(maxRetry int) chains.Middleware {
 
 				for i := 0; ; i++ {
 					attempt++
+
+					if request.Body != nil {
+						body, err := request.body()
+						if err != nil {
+							return nil, err
+						}
+						if c, ok := body.(io.ReadCloser); ok {
+							request.Body = c
+						} else {
+							request.Body = ioutil.NopCloser(body)
+						}
+					}
+
 					rsp, errRT = next.RoundTrip(request.Request)
 					shouldRetry, checkErr = DefaultRetryPolicy(request.Context(), rsp, errRT)
 
@@ -79,7 +94,8 @@ func Retrier(maxRetry int) chains.Middleware {
 					return nil, errors.Errorf("%s %s giveup after %d attempt(s)", req.Method, req.URL, attempt)
 				}
 				return nil, errors.WithMessagef(err, "%s %s giveup after %d attempt(s)", req.Method, req.URL, attempt)
-			})
+			},
+		)
 	}
 }
 
