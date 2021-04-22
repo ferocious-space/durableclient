@@ -2,6 +2,7 @@ package durableclient
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/ferocious-space/httpcache"
 	"github.com/go-logr/logr"
@@ -17,6 +18,8 @@ func (x *cloneClient) Clone() *DurableClient {
 }
 
 type DurableClient struct {
+	*http.Client
+
 	ctx     context.Context
 	logger  logr.Logger
 	agent   string
@@ -26,27 +29,65 @@ type DurableClient struct {
 	http2   bool
 }
 
-func (c *DurableClient) SetHttp2(http2 bool) {
+func (c *DurableClient) setHTTP2(http2 bool) {
 	c.http2 = http2
 }
 
-func (c *DurableClient) SetRetrier(retrier bool) {
+func (c *DurableClient) setRetrier(retrier bool) {
 	c.retrier = retrier
 }
 
-func (c *DurableClient) SetCtx(ctx context.Context) {
+func (c *DurableClient) setCTX(ctx context.Context) {
 	c.ctx = ctx
 }
 
-func (c *DurableClient) SetCache(cache httpcache.Cache) {
+func (c *DurableClient) setCache(cache httpcache.Cache) {
 	c.cache = cache
 }
 
-func (c *DurableClient) SetPooled(pooled bool) {
+func (c *DurableClient) setPooled(pooled bool) {
 	c.pooled = pooled
 }
 
-func (c *DurableClient) Clone() *DurableClient {
+func (c *DurableClient) Clone(opt ...ClientOptions) *DurableClient {
 	cloned := cloneClient{c}
-	return cloned.Clone()
+	client := cloned.Clone()
+	for _, o := range opt {
+		o(client)
+	}
+	return client
 }
+
+// func (c *DurableClient) httpDo(ctx context.Context, req *http.Request, f func(resp *http.Response, err error) error) error {
+// 	ch := make(chan error, 1)
+// 	req = req.WithContext(ctx)
+// 	go func() { ch <- f(c.Do(req)) }()
+// 	select {
+// 	case <-ctx.Done():
+// 		<-ch
+// 		return ctx.Err()
+// 	case err := <-ch:
+// 		return err
+// 	}
+// }
+//
+// func (c *DurableClient) GoGet(ctx context.Context, url string) (<-chan *http.Response, <-chan error) {
+// 	respChan := make(chan *http.Response)
+// 	errChan := make(chan error)
+// 	go func() {
+// 		defer close(respChan)
+// 		defer close(errChan)
+// 		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+// 		if err != nil {
+// 			respChan <- nil
+// 			errChan <- err
+// 			return
+// 		}
+// 		errChan <- c.httpDo(ctx, req, func(resp *http.Response, err error) error {
+// 			respChan <- resp
+// 			return err
+// 		})
+//
+// 	}()
+// 	return respChan, errChan
+// }

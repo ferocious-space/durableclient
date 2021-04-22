@@ -4,8 +4,9 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/ferocious-space/durableclient/chains"
 	"github.com/ferocious-space/httpcache"
+
+	"github.com/ferocious-space/durableclient/chains"
 )
 
 func newCache(cache httpcache.Cache) chains.Middleware {

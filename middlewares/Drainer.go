@@ -7,8 +7,9 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/ferocious-space/durableclient/chains"
 	"github.com/go-logr/logr"
+
+	"github.com/ferocious-space/durableclient/chains"
 )
 
 func Drainer(ctx context.Context) chains.Middleware {
@@ -37,7 +38,7 @@ func Drainer(ctx context.Context) chains.Middleware {
 					log.Error(err, "roundtrip()")
 					return nil, err
 				}
-				if rsp != nil && rsp.Body != nil {
+				if rsp != nil && rsp.Body != nil && rsp.ContentLength < 1<<20*20 {
 					body, err := ioutil.ReadAll(rsp.Body)
 					if err != nil {
 						log.Error(err, "reading response body")

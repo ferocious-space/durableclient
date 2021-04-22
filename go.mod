@@ -3,7 +3,6 @@ module github.com/ferocious-space/durableclient
 go 1.15
 
 require (
-	github.com/cep21/circuit v3.0.0+incompatible
 	github.com/cep21/circuit/v3 v3.2.0
 	github.com/ferocious-space/httpcache v0.0.0-20210315185548-b6a8d8870eaa
 	github.com/go-logr/logr v0.4.0
