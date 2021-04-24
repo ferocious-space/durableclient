@@ -86,36 +86,46 @@ func getReader(rawBody interface{}) (BodyFN, int64, error) {
 			c.Close()
 		}
 	case []byte:
+
 		buf := body
 		reader = func() (io.Reader, error) {
 			return bytes.NewReader(buf), nil
 		}
 		length = int64(len(buf))
 	case *bytes.Buffer:
+
 		buf := body
 		reader = func() (io.Reader, error) {
 			return bytes.NewReader(buf.Bytes()), nil
 		}
 		length = int64(buf.Len())
+
 	case *bytes.Reader:
-		buf, err := ioutil.ReadAll(body)
+
+		bodyBuffer := new(bytes.Buffer)
+		n, err := io.Copy(bodyBuffer, body)
 		if err != nil {
 			return nil, 0, err
 		}
 		reader = func() (io.Reader, error) {
-			return bytes.NewBuffer(buf), nil
+			return bodyBuffer, nil
 		}
-		length = int64(len(buf))
+		length = n
+
 	case io.Reader:
-		buf, err := ioutil.ReadAll(body)
+
+		bodyBuffer := new(bytes.Buffer)
+		n, err := io.Copy(bodyBuffer, body)
 		if err != nil {
 			return nil, 0, err
 		}
 		reader = func() (io.Reader, error) {
-			return bytes.NewBuffer(buf), nil
+			return bodyBuffer, nil
 		}
-		length = int64(len(buf))
+		length = n
+
 	case nil:
+
 	default:
 		return nil, 0, errors.Errorf("cannot handle %T", rawBody)
 	}

@@ -1,12 +1,15 @@
 package chains
 
 import (
+	"context"
 	"net/http"
 	"net/http/cookiejar"
 	"sync"
 
-	"github.com/ferocious-space/durableclient/cleanhttp"
+	"github.com/go-logr/logr"
 	"golang.org/x/net/publicsuffix"
+
+	"github.com/ferocious-space/durableclient/cleanhttp"
 )
 
 var httpClient *http.Client
@@ -18,9 +21,11 @@ func defaultClient() *http.Client {
 	cmu.Lock()
 	defer cmu.Unlock()
 	if httpClient == nil {
-		jar, err := cookiejar.New(&cookiejar.Options{
-			PublicSuffixList: publicsuffix.List,
-		})
+		jar, err := cookiejar.New(
+			&cookiejar.Options{
+				PublicSuffixList: publicsuffix.List,
+			},
+		)
 		if err != nil {
 			panic(err.Error())
 		}
@@ -77,16 +82,27 @@ func (r Middleware) DefaultRoundTripper() http.RoundTripper {
 	return r.ThenRoundTripper(nil)
 }
 
-func (r Middleware) ThenMiddleware(m Middleware) Chain {
-	return NewChain(r, m)
+func (r Middleware) ThenMiddleware(ctx context.Context, m Middleware) Chain {
+	return NewChain(ctx, r, m)
 }
 
 type Chain struct {
 	middlewares []Middleware
 }
 
-func NewChain(middlewares ...Middleware) Chain {
-	return Chain{append([]Middleware(nil), middlewares...)}
+//ctx this middleware is used to attach logr to http.Request
+func withctx(ctx context.Context) Middleware {
+	return func(next http.RoundTripper) http.RoundTripper {
+		return RoundTripFunc(
+			func(request *http.Request) (*http.Response, error) {
+				return next.RoundTrip(request.Clone(logr.NewContext(request.Context(), logr.FromContextOrDiscard(ctx))))
+			},
+		)
+	}
+}
+
+func NewChain(ctx context.Context, middlewares ...Middleware) Chain {
+	return Chain{append([]Middleware{withctx(ctx)}, middlewares...)}
 }
 
 func (c Chain) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -112,8 +128,8 @@ func (c Chain) ThenClient(client *http.Client, clone bool) *http.Client {
 		client = defaultClient()
 	}
 	if clone {
-		c := *client
-		client = &c
+		cClone := *client
+		client = &cClone
 	}
 	client.Transport = c.ThenRoundTripper(client.Transport)
 	return client

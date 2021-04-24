@@ -2,7 +2,6 @@ package middlewares
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -12,11 +11,12 @@ import (
 	"github.com/ferocious-space/durableclient/chains"
 )
 
-func Drainer(ctx context.Context) chains.Middleware {
+func Drainer() chains.Middleware {
 	return func(next http.RoundTripper) http.RoundTripper {
 		return chains.RoundTripFunc(
 			func(request *http.Request) (*http.Response, error) {
-				log := logr.FromContext(ctx).WithName("drainer")
+				logr.FromContextOrDiscard(request.Context()).V(1).Info("middleware.Drainer().RoundTripper()")
+				log := logr.FromContext(request.Context()).WithName("drainer")
 				req, err := FromRequest(request)
 				if err != nil {
 					return nil, err
@@ -33,21 +33,23 @@ func Drainer(ctx context.Context) chains.Middleware {
 					}
 
 				}
-				rsp, err := next.RoundTrip(req.WithContext(ctx).Request)
+				rsp, err := next.RoundTrip(req.Request)
 				if err != nil {
 					log.Error(err, "roundtrip()")
 					return nil, err
 				}
 				if rsp != nil && rsp.Body != nil && rsp.ContentLength < 1<<20*20 {
-					body, err := ioutil.ReadAll(rsp.Body)
+					bodyBuffer := new(bytes.Buffer)
+					_, err := io.Copy(bodyBuffer, rsp.Body)
 					if err != nil {
 						log.Error(err, "reading response body")
 						return nil, err
 					}
 					rsp.Body.Close()
-					rsp.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+					rsp.Body = ioutil.NopCloser(bodyBuffer)
 				}
 				return rsp, nil
-			})
+			},
+		)
 	}
 }

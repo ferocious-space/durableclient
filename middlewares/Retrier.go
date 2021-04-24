@@ -20,11 +20,12 @@ func Retrier(maxRetry int) chains.Middleware {
 	return func(next http.RoundTripper) http.RoundTripper {
 		return chains.RoundTripFunc(
 			func(req *http.Request) (*http.Response, error) {
+				logr.FromContextOrDiscard(req.Context()).V(1).Info("middleware.Retrier().RoundTripper()", "maxRetry", maxRetry)
 				request, err := FromRequest(req)
 				if err != nil {
 					return nil, err
 				}
-				log := logr.FromContext(request.Context()).WithName("retrier")
+				log := logr.FromContextOrDiscard(request.Context()).WithName("retrier")
 
 				var rsp *http.Response
 				var errRT, checkErr error
