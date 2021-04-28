@@ -67,7 +67,7 @@ func Retrier(maxRetry int) chains.Middleware {
 					}
 
 					when := DefaultBackoff(time.Duration(300)*time.Millisecond, time.Duration(3)*time.Second, i, rsp)
-					log.V(1).Error(errRT, "retry", "in", when, "uri", request.URL.RequestURI())
+					log.V(1).Error(errRT, "retry", "in", when.String(), "uri", request.URL.RequestURI())
 
 					select {
 					case <-request.Context().Done():

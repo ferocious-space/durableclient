@@ -150,7 +150,7 @@ func (c CircuitMiddleware) Middleware(maxErrors int64, rollingDuration time.Dura
 					"URI",
 					request.URL.RequestURI(),
 					"L95p",
-					rs.Latencies.Snapshot().Percentile(0.95),
+					rs.Latencies.Snapshot().Percentile(0.95).String(),
 					"E",
 					rs.ErrFailures.RollingSum(),
 					"T",
