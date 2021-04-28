@@ -20,7 +20,7 @@ func Retrier(maxRetry int) chains.Middleware {
 	return func(next http.RoundTripper) http.RoundTripper {
 		return chains.RoundTripFunc(
 			func(req *http.Request) (*http.Response, error) {
-				logr.FromContextOrDiscard(req.Context()).V(1).Info("middleware.Retrier().RoundTripper()", "maxRetry", maxRetry)
+				logr.FromContextOrDiscard(req.Context()).V(2).Info("middleware.Retrier().RoundTripper()", "maxRetry", maxRetry)
 				request, err := FromRequest(req)
 				if err != nil {
 					return nil, err

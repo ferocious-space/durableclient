@@ -91,7 +91,7 @@ func (c CircuitMiddleware) Middleware(maxErrors int64, rollingDuration time.Dura
 	return func(next http.RoundTripper) http.RoundTripper {
 		return chains.RoundTripFunc(
 			func(request *http.Request) (*http.Response, error) {
-				logr.FromContextOrDiscard(request.Context()).V(1).Info("middleware.Circuit().RoundTripper()", "maxErrors", maxErrors, "rollingWindow", rollingDuration)
+				logr.FromContextOrDiscard(request.Context()).V(2).Info("middleware.Circuit().RoundTripper()", "maxErrors", maxErrors, "rollingWindow", rollingDuration)
 				log := logr.FromContextOrDiscard(request.Context()).WithName("circuit")
 				var err error
 				crc, err := circuits.Get(request.Host)
