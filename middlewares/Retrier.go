@@ -56,7 +56,7 @@ func Retrier(maxRetry int) chains.Middleware {
 					}
 
 					// chec if we reached max retry
-					remain := maxRetry - i
+					remain := maxRetry - attempt
 					if remain <= 0 {
 						break
 					}

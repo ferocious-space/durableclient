@@ -19,9 +19,10 @@ type durableOption struct {
 	retrier    bool
 	numRetries int
 
-	circuit       bool
-	maxErrors     int64
-	rollingWindow time.Duration
+	circuit                  bool
+	maxErrors                int64
+	ErrorThresholdPercentage int64
+	rollingWindow            time.Duration
 
 	opt []cleanhttp.TransportOptions
 }
@@ -73,7 +74,7 @@ func OptionRetrier(numRetries int) ClientOptions {
 }
 
 //OptionCircuit if maxErrors <= or rollingWindow <= 0 , disables circuit
-func OptionCircuit(maxErrors int64, rollingWindow time.Duration) ClientOptions {
+func OptionCircuit(maxErrors int64, ErrorThresholdPercentage int64, rollingWindow time.Duration) ClientOptions {
 	return func(c *durableOption) {
 		if maxErrors <= 0 || rollingWindow <= time.Duration(0) {
 			c.circuit = false
@@ -82,6 +83,7 @@ func OptionCircuit(maxErrors int64, rollingWindow time.Duration) ClientOptions {
 		c.circuit = true
 		c.maxErrors = maxErrors
 		c.rollingWindow = rollingWindow
+		c.ErrorThresholdPercentage = ErrorThresholdPercentage
 	}
 }
 

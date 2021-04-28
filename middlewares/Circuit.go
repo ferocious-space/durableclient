@@ -12,6 +12,7 @@ import (
 	"github.com/cep21/circuit/v3/closers/hystrix"
 	"github.com/cep21/circuit/v3/metrics/rolling"
 	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 
 	"github.com/ferocious-space/durableclient/chains"
 )
@@ -87,7 +88,7 @@ var (
 	schemeErrorRe    = regexp.MustCompile(`unsupported protocol scheme`)
 )
 
-func (c CircuitMiddleware) Middleware(maxErrors int64, rollingDuration time.Duration) chains.Middleware {
+func (c CircuitMiddleware) Middleware(maxErrors int64, ErrorThresholdPercentage int64, rollingDuration time.Duration) chains.Middleware {
 	return func(next http.RoundTripper) http.RoundTripper {
 		return chains.RoundTripFunc(
 			func(request *http.Request) (*http.Response, error) {
@@ -99,10 +100,43 @@ func (c CircuitMiddleware) Middleware(maxErrors int64, rollingDuration time.Dura
 					return nil, err
 				}
 
+				config := crc.ClosedToOpen.(*hystrix.Opener).Config()
+				if config.RequestVolumeThreshold != maxErrors {
+					config.Merge(
+						hystrix.ConfigureOpener{
+							RequestVolumeThreshold: maxErrors,
+						},
+					)
+					crc.ClosedToOpen.(*hystrix.Opener).SetConfigThreadSafe(
+						config,
+					)
+				}
+				if config.RollingDuration != rollingDuration {
+					config.Merge(
+						hystrix.ConfigureOpener{
+							RollingDuration: rollingDuration,
+						},
+					)
+					crc.ClosedToOpen.(*hystrix.Opener).SetConfigThreadSafe(
+						config,
+					)
+				}
+
+				if config.ErrorThresholdPercentage != ErrorThresholdPercentage {
+					config.Merge(
+						hystrix.ConfigureOpener{
+							ErrorThresholdPercentage: ErrorThresholdPercentage,
+						},
+					)
+					crc.ClosedToOpen.(*hystrix.Opener).SetConfigThreadSafe(
+						config,
+					)
+				}
+
 				result := make(chan *http.Response, 1)
+				defer close(result)
 				err = crc.Execute(
 					request.Context(), func(ctx context.Context) error {
-						defer close(result)
 						rsp, err := next.RoundTrip(request.Clone(ctx))
 						result <- rsp
 						if err != nil {
@@ -126,23 +160,7 @@ func (c CircuitMiddleware) Middleware(maxErrors int64, rollingDuration time.Dura
 						return nil
 					}, nil,
 				)
-				config := crc.ClosedToOpen.(*hystrix.Opener).Config()
-				if config.RequestVolumeThreshold != maxErrors {
-					crc.ClosedToOpen.(*hystrix.Opener).SetConfigThreadSafe(
-						hystrix.ConfigureOpener{
-							RequestVolumeThreshold: maxErrors,
-						},
-					)
-				}
-				if config.RollingDuration != rollingDuration {
-					crc.ClosedToOpen.(*hystrix.Opener).SetConfigThreadSafe(
-						hystrix.ConfigureOpener{
-							RollingDuration: rollingDuration,
-						},
-					)
-				}
 				rs := stats.RunStats(request.Host)
-				res := <-result
 				log.V(1).Info(
 					"Circuit",
 					"Name",
@@ -156,9 +174,15 @@ func (c CircuitMiddleware) Middleware(maxErrors int64, rollingDuration time.Dura
 					"T",
 					rs.ErrTimeouts.RollingSum(),
 				)
-				return res, err
-
-				// return next.RoundTrip(request)
+				if err != nil {
+					return nil, err
+				}
+				select {
+				case x := <-result:
+					return x, nil
+				case <-time.After(1 * time.Second):
+					return nil, errors.New("timeout waiting for reply")
+				}
 			},
 		)
 	}

@@ -25,23 +25,25 @@ import (
 //		numRetries:    3,
 //		circuit:       true,
 //		maxErrors:     80,
+//      ErrorThresholdPercentage: 100,
 //		rollingWindow: time.Second * 60,
 //	}
 // use ClientOptions to change them
 func NewDurableClient(opt ...ClientOptions) *http.Client {
 
 	params := &durableOption{
-		cache:         nil,
-		ctx:           context.TODO(),
-		logger:        logr.Discard(),
-		agent:         "https://github.com/ferocious-space/durableclient",
-		pooling:       false,
-		retrier:       true,
-		numRetries:    3,
-		circuit:       true,
-		maxErrors:     80,
-		rollingWindow: time.Second * 60,
-		opt:           []cleanhttp.TransportOptions{},
+		cache:                    nil,
+		ctx:                      context.TODO(),
+		logger:                   logr.Discard(),
+		agent:                    "https://github.com/ferocious-space/durableclient",
+		pooling:                  false,
+		retrier:                  true,
+		numRetries:               3,
+		circuit:                  true,
+		maxErrors:                80,
+		ErrorThresholdPercentage: 100,
+		rollingWindow:            time.Second * 60,
+		opt:                      []cleanhttp.TransportOptions{},
 	}
 
 	for _, o := range opt {
@@ -63,7 +65,12 @@ func NewDurableClient(opt ...ClientOptions) *http.Client {
 	builder = builder.ExtendWith(middlewares.Enable(params.retrier, middlewares.Retrier(params.numRetries)))
 
 	// add circuit if defined
-	builder = builder.ExtendWith(middlewares.Enable(params.circuit, middlewares.NewCircuitMiddleware().Middleware(params.maxErrors, params.rollingWindow)))
+	builder = builder.ExtendWith(
+		middlewares.Enable(
+			params.circuit,
+			middlewares.NewCircuitMiddleware().Middleware(params.maxErrors, params.ErrorThresholdPercentage, params.rollingWindow),
+		),
+	)
 
 	return builder.ThenClient(client, false)
 }
