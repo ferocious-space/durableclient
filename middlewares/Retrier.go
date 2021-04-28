@@ -47,17 +47,17 @@ func Retrier(maxRetry int) chains.Middleware {
 						}
 					}
 
-					// check if we reached max retry
-					remain := maxRetry - i
-					if remain <= 0 {
-						break
-					}
-
 					rsp, errRT = next.RoundTrip(request.Request)
 					shouldRetry, checkErr = DefaultRetryPolicy(request.Context(), rsp, errRT)
 
 					// no retry
 					if !shouldRetry {
+						break
+					}
+
+					// chec if we reached max retry
+					remain := maxRetry - i
+					if remain <= 0 {
 						break
 					}
 
