@@ -4,7 +4,7 @@ import (
 	"io"
 	"io/ioutil"
 
-	"github.com/ferocious-space/httpcache"
+	"github.com/ferocious-space/httpcache/LruCache"
 	"github.com/go-logr/zapr"
 	"go.uber.org/zap"
 
@@ -18,7 +18,7 @@ func main() {
 	url := "https://esi.evetech.net/latest/characters/90126489/?datasource=tranquility"
 
 	normalClient := durableclient.NewDurableClient(durableclient.OptionLogger(log.WithName("normal")))
-	cacheClient := durableclient.NewDurableClient(durableclient.OptionLogger(log.WithName("cached")), durableclient.OptionCache(httpcache.NewLRUCache(1<<20*50, 600)))
+	cacheClient := durableclient.NewDurableClient(durableclient.OptionLogger(log.WithName("cached")), durableclient.OptionCache(LruCache.NewLRUCache(1<<20*50)))
 
 	b := int64(0)
 	log.Info("NO Cache Transport")
