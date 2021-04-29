@@ -12,7 +12,6 @@ import (
 	"github.com/cep21/circuit/v3/closers/hystrix"
 	"github.com/cep21/circuit/v3/metrics/rolling"
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
 
 	"github.com/ferocious-space/durableclient/chains"
 )
@@ -111,12 +110,11 @@ func (x *CircuitMiddleware) Middleware() chains.Middleware {
 
 				rs := stats.RunStats(request.Host)
 
-				result := make(chan *http.Response, 1)
-				defer close(result)
-				err = crc.Execute(
+				rsp := new(http.Response)
+				err = crc.Run(
 					request.Context(), func(ctx context.Context) error {
-						rsp, err := next.RoundTrip(request.Clone(ctx))
-						result <- rsp
+						var err error
+						rsp, err = next.RoundTrip(request.Clone(ctx))
 						if err != nil {
 							if redirectsErrorRe.MatchString(err.Error()) {
 								return &circuit.SimpleBadRequest{
@@ -136,9 +134,8 @@ func (x *CircuitMiddleware) Middleware() chains.Middleware {
 							return err
 						}
 						return nil
-					}, nil,
+					},
 				)
-
 				log.V(1).Info(
 					"Circuit",
 					"Name",
@@ -151,16 +148,13 @@ func (x *CircuitMiddleware) Middleware() chains.Middleware {
 					rs.ErrFailures.RollingSum(),
 					"T",
 					rs.ErrTimeouts.RollingSum(),
+					"O",
+					crc.IsOpen(),
 				)
 				if err != nil {
 					return nil, err
 				}
-				select {
-				case x := <-result:
-					return x, nil
-				case <-time.After(1 * time.Second):
-					return nil, errors.New("timeout waiting for reply")
-				}
+				return rsp, nil
 			},
 		)
 	}
