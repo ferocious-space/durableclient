@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/cep21/circuit/v3/closers/hystrix"
+	"github.com/cep21/circuit/v3/metrics/rolling"
 	"github.com/go-logr/logr"
 
 	"github.com/ferocious-space/durableclient/chains"
@@ -32,18 +34,36 @@ import (
 func NewDurableClient(opt ...ClientOptions) *http.Client {
 
 	params := &durableOption{
-		cache:                    nil,
-		ctx:                      context.TODO(),
-		logger:                   logr.Discard(),
-		agent:                    "https://github.com/ferocious-space/durableclient",
-		pooling:                  false,
-		retrier:                  true,
-		numRetries:               3,
-		circuit:                  true,
-		maxErrors:                80,
-		ErrorThresholdPercentage: 100,
-		rollingWindow:            time.Second * 60,
-		opt:                      []cleanhttp.TransportOptions{},
+		cache:                 nil,
+		ctx:                   context.TODO(),
+		logger:                logr.Discard(),
+		agent:                 "https://github.com/ferocious-space/durableclient",
+		pooling:               false,
+		retrier:               true,
+		numRetries:            3,
+		circuit:               true,
+		maxConcurrentRequests: 50,
+
+		closerConfig: &hystrix.ConfigureCloser{
+			SleepWindow:                  time.Duration(5) * time.Minute,
+			HalfOpenAttempts:             int64((time.Duration(5)*time.Minute)/time.Second) / 5,
+			RequiredConcurrentSuccessful: 3,
+		},
+		openerConfig: &hystrix.ConfigureOpener{
+			ErrorThresholdPercentage: 50,
+			RequestVolumeThreshold:   80,
+			RollingDuration:          time.Duration(1) * time.Minute,
+			NumBuckets:               int(int64(time.Minute/time.Millisecond) / 100),
+		},
+		statsConfig: &rolling.RunStatsConfig{
+			RollingStatsDuration:        time.Duration(1) * time.Minute,
+			RollingStatsNumBuckets:      int(int64(time.Minute/time.Millisecond) / 100),
+			RollingPercentileDuration:   time.Duration(10) * time.Minute,
+			RollingPercentileNumBuckets: int(int64(time.Minute/time.Millisecond) / 1000),
+			RollingPercentileBucketSize: 50 * 3,
+		},
+
+		opt: []cleanhttp.TransportOptions{},
 	}
 
 	for _, o := range opt {
@@ -68,7 +88,7 @@ func NewDurableClient(opt ...ClientOptions) *http.Client {
 	builder = builder.ExtendWith(
 		middlewares.Enable(
 			params.circuit,
-			middlewares.NewCircuitMiddleware().Middleware(params.maxErrors, params.ErrorThresholdPercentage, params.rollingWindow),
+			middlewares.NewCircuitMiddleware(params.closerConfig, params.openerConfig, params.statsConfig, params.maxConcurrentRequests).Middleware(),
 		),
 	)
 

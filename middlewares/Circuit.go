@@ -18,69 +18,75 @@ import (
 )
 
 var oneManager sync.Once
-var m *circuit.Manager
+var m circuit.Manager
 var stats rolling.StatFactory
+var mGuard sync.Mutex
 
-var circuits circuitMap
-
-type circuitMap struct {
-	m sync.Map
-}
-
-func (m *circuitMap) Get(name string) (crc *circuit.Circuit, err error) {
-	if data, ok := m.m.Load(name); !ok {
-		crc, err = getManager().CreateCircuit(
-			name, circuit.Config{
-				Execution: circuit.ExecutionConfig{
-					Timeout:               -1,
-					MaxConcurrentRequests: 50,
-				},
-			},
-		)
-		if err != nil {
-			return nil, err
-		}
-		m.m.Store(name, crc)
-	} else {
-		if crc, ok = data.(*circuit.Circuit); !ok {
-			crc, err = getManager().CreateCircuit(name)
-			if err != nil {
-				return nil, err
-			}
-			m.m.Store(name, crc)
-		}
+func (x *CircuitMiddleware) Get(name string) (crc *circuit.Circuit, err error) {
+	crc = getManager().GetCircuit(name)
+	if crc != nil {
+		return crc, nil
 	}
+
+	cfg := x.cfg
+	stats.RunConfig = *x.scfg
+	cfg.Merge(stats.CreateConfig(name))
+	crc, err = getManager().CreateCircuit(name, cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	return crc, nil
 }
 
 type CircuitMiddleware struct {
+	cfg  circuit.Config
+	scfg *rolling.RunStatsConfig
 }
 
 func getManager() *circuit.Manager {
+	mGuard.Lock()
+	defer mGuard.Unlock()
+
 	oneManager.Do(
 		func() {
-			factory := hystrix.Factory{
-				ConfigureCloser: hystrix.ConfigureCloser{
-					SleepWindow:                  time.Minute * 5,
-					HalfOpenAttempts:             10,
-					RequiredConcurrentSuccessful: 3,
-				},
-				ConfigureOpener: hystrix.ConfigureOpener{
-					ErrorThresholdPercentage: 80,
-					RequestVolumeThreshold:   80,
-					RollingDuration:          time.Second * 60,
-				},
-			}
-			m = &circuit.Manager{
+			factory := hystrix.Factory{}
+			m = circuit.Manager{
 				DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{factory.Configure, stats.CreateConfig},
 			}
 		},
 	)
-	return m
+	return &m
 }
 
-func NewCircuitMiddleware() *CircuitMiddleware {
-	return &CircuitMiddleware{}
+func NewCircuitMiddleware(
+	closerConfig *hystrix.ConfigureCloser,
+	openerConfig *hystrix.ConfigureOpener,
+	statsConfig *rolling.RunStatsConfig,
+	maxConcurrentRequests int64,
+) *CircuitMiddleware {
+	cfg := circuit.Config{
+		General: circuit.GeneralConfig{
+			ClosedToOpenFactory: hystrix.OpenerFactory(*openerConfig),
+			OpenToClosedFactory: hystrix.CloserFactory(*closerConfig),
+		},
+		Execution: circuit.ExecutionConfig{
+			Timeout:               time.Second * time.Duration(5),
+			MaxConcurrentRequests: maxConcurrentRequests,
+		},
+		Fallback: circuit.FallbackConfig{
+			MaxConcurrentRequests: maxConcurrentRequests,
+		},
+		Metrics: circuit.MetricsCollectors{
+			Run:      []circuit.RunMetrics{},
+			Fallback: []circuit.FallbackMetrics{},
+		},
+	}
+
+	return &CircuitMiddleware{
+		cfg:  cfg,
+		scfg: statsConfig,
+	}
 }
 
 var (
@@ -88,50 +94,22 @@ var (
 	schemeErrorRe    = regexp.MustCompile(`unsupported protocol scheme`)
 )
 
-func (c CircuitMiddleware) Middleware(maxErrors int64, ErrorThresholdPercentage int64, rollingDuration time.Duration) chains.Middleware {
+func (x *CircuitMiddleware) Middleware() chains.Middleware {
 	return func(next http.RoundTripper) http.RoundTripper {
 		return chains.RoundTripFunc(
 			func(request *http.Request) (*http.Response, error) {
-				logr.FromContextOrDiscard(request.Context()).V(2).Info("middleware.Circuit().RoundTripper()", "maxErrors", maxErrors, "rollingWindow", rollingDuration)
+				logr.FromContextOrDiscard(request.Context()).V(2).Info("middleware.Circuit().RoundTripper()")
 				log := logr.FromContextOrDiscard(request.Context()).WithName("circuit")
 				var err error
-				crc, err := circuits.Get(request.Host)
+				crc, err := x.Get(request.Host)
 				if err != nil {
 					return nil, err
 				}
 
-				config := crc.ClosedToOpen.(*hystrix.Opener).Config()
-				if config.RequestVolumeThreshold != maxErrors {
-					config.Merge(
-						hystrix.ConfigureOpener{
-							RequestVolumeThreshold: maxErrors,
-						},
-					)
-					crc.ClosedToOpen.(*hystrix.Opener).SetConfigThreadSafe(
-						config,
-					)
-				}
-				if config.RollingDuration != rollingDuration {
-					config.Merge(
-						hystrix.ConfigureOpener{
-							RollingDuration: rollingDuration,
-						},
-					)
-					crc.ClosedToOpen.(*hystrix.Opener).SetConfigThreadSafe(
-						config,
-					)
-				}
+				//configCtO := crc.ClosedToOpen.(*hystrix.Opener).Config()
+				//configOtC := crc.OpenToClose.(*hystrix.Closer).Config()
 
-				if config.ErrorThresholdPercentage != ErrorThresholdPercentage {
-					config.Merge(
-						hystrix.ConfigureOpener{
-							ErrorThresholdPercentage: ErrorThresholdPercentage,
-						},
-					)
-					crc.ClosedToOpen.(*hystrix.Opener).SetConfigThreadSafe(
-						config,
-					)
-				}
+				rs := stats.RunStats(request.Host)
 
 				result := make(chan *http.Response, 1)
 				defer close(result)
@@ -160,7 +138,7 @@ func (c CircuitMiddleware) Middleware(maxErrors int64, ErrorThresholdPercentage 
 						return nil
 					}, nil,
 				)
-				rs := stats.RunStats(request.Host)
+
 				log.V(1).Info(
 					"Circuit",
 					"Name",

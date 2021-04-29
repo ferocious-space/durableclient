@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/cep21/circuit/v3/closers/hystrix"
+	"github.com/cep21/circuit/v3/metrics/rolling"
 	"github.com/ferocious-space/httpcache"
 	"github.com/go-logr/logr"
 
@@ -19,10 +21,11 @@ type durableOption struct {
 	retrier    bool
 	numRetries int
 
-	circuit                  bool
-	maxErrors                int64
-	ErrorThresholdPercentage int64
-	rollingWindow            time.Duration
+	circuit               bool
+	maxConcurrentRequests int64
+	closerConfig          *hystrix.ConfigureCloser
+	openerConfig          *hystrix.ConfigureOpener
+	statsConfig           *rolling.RunStatsConfig
 
 	opt []cleanhttp.TransportOptions
 }
@@ -74,16 +77,30 @@ func OptionRetrier(numRetries int) ClientOptions {
 }
 
 //OptionCircuit if maxErrors <= or rollingWindow <= 0 , disables circuit
-func OptionCircuit(maxErrors int64, ErrorThresholdPercentage int64, rollingWindow time.Duration) ClientOptions {
+func OptionCircuit(maxErrors int64, ErrorThresholdPercentage int64, rollingWindow time.Duration, sleepWindow time.Duration, maxConcurrentRequests int64) ClientOptions {
 	return func(c *durableOption) {
 		if maxErrors <= 0 || rollingWindow <= time.Duration(0) {
 			c.circuit = false
 			return
 		}
 		c.circuit = true
-		c.maxErrors = maxErrors
-		c.rollingWindow = rollingWindow
-		c.ErrorThresholdPercentage = ErrorThresholdPercentage
+		c.maxConcurrentRequests = maxConcurrentRequests
+
+		c.openerConfig.RequestVolumeThreshold = maxErrors
+		c.openerConfig.ErrorThresholdPercentage = ErrorThresholdPercentage
+
+		c.openerConfig.RollingDuration = rollingWindow
+		c.openerConfig.NumBuckets = int(int64(rollingWindow/time.Millisecond) / 100)
+
+		c.closerConfig.SleepWindow = sleepWindow
+		c.closerConfig.HalfOpenAttempts = int64(sleepWindow/time.Second) / 5
+		c.closerConfig.RequiredConcurrentSuccessful = 3
+
+		c.statsConfig.RollingStatsDuration = c.openerConfig.RollingDuration
+		c.statsConfig.RollingStatsNumBuckets = int(int64(c.statsConfig.RollingStatsDuration/time.Millisecond) / 100)
+		c.statsConfig.RollingPercentileDuration = c.openerConfig.RollingDuration * 10
+		c.statsConfig.RollingPercentileNumBuckets = int(int64(c.statsConfig.RollingPercentileDuration/time.Millisecond) / 1000)
+		c.statsConfig.RollingPercentileBucketSize = int(maxConcurrentRequests * 3)
 	}
 }
 
