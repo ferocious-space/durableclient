@@ -1,7 +1,6 @@
 package chains
 
 import (
-	"context"
 	"net/http"
 	"net/http/cookiejar"
 	"sync"
@@ -82,27 +81,23 @@ func (r Middleware) DefaultRoundTripper() http.RoundTripper {
 	return r.ThenRoundTripper(nil)
 }
 
-func (r Middleware) ThenMiddleware(ctx context.Context, m Middleware) Chain {
-	return NewChain(ctx, r, m)
+func (r Middleware) ThenMiddleware(log logr.Logger, m Middleware) Chain {
+	if log == nil {
+		log = logr.Discard()
+	}
+	return NewChain(log, r, m)
 }
 
 type Chain struct {
 	middlewares []Middleware
+	log         logr.Logger
 }
 
-//ctx this middleware is used to attach logr to http.Request
-func withctx(ctx context.Context) Middleware {
-	return func(next http.RoundTripper) http.RoundTripper {
-		return RoundTripFunc(
-			func(request *http.Request) (*http.Response, error) {
-				return next.RoundTrip(request.Clone(logr.NewContext(request.Context(), logr.FromContextOrDiscard(ctx))))
-			},
-		)
+func NewChain(log logr.Logger, middlewares ...Middleware) Chain {
+	if log == nil {
+		log = logr.Discard()
 	}
-}
-
-func NewChain(ctx context.Context, middlewares ...Middleware) Chain {
-	return Chain{append([]Middleware{withctx(ctx)}, middlewares...)}
+	return Chain{middlewares: append([]Middleware{}, middlewares...), log: log}
 }
 
 func (c Chain) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -143,5 +138,5 @@ func (c Chain) ExtendWith(middlewares ...Middleware) Chain {
 	newChain := make([]Middleware, 0, len(c.middlewares)+len(middlewares))
 	newChain = append(newChain, c.middlewares...)
 	newChain = append(newChain, middlewares...)
-	return Chain{newChain}
+	return Chain{middlewares: newChain, log: c.log}
 }

@@ -109,7 +109,6 @@ func (x *CircuitMiddleware) Middleware() chains.Middleware {
 				//configOtC := crc.OpenToClose.(*hystrix.Closer).Config()
 
 				rs := stats.RunStats(request.Host)
-
 				rsp := new(http.Response)
 				err = crc.Run(
 					request.Context(), func(ctx context.Context) error {
@@ -136,6 +135,7 @@ func (x *CircuitMiddleware) Middleware() chains.Middleware {
 						return nil
 					},
 				)
+				rsp.Request = request
 				log.V(1).Info(
 					"Circuit",
 					"Name",

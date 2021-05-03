@@ -1,7 +1,6 @@
 package durableclient
 
 import (
-	"context"
 	"net/http"
 	"time"
 
@@ -19,7 +18,6 @@ import (
 //
 //params := &durableOption{
 //		cache:         nil,
-//		ctx:           context.TODO(),
 //		logger:        logr.Discard(),
 //		agent:         "https://github.com/ferocious-space/durableclient",
 //		pooling:       false,
@@ -35,7 +33,6 @@ func NewDurableClient(opt ...ClientOptions) *http.Client {
 
 	params := &durableOption{
 		cache:                 nil,
-		ctx:                   context.TODO(),
 		logger:                logr.Discard(),
 		agent:                 "https://github.com/ferocious-space/durableclient",
 		pooling:               false,
@@ -72,7 +69,7 @@ func NewDurableClient(opt ...ClientOptions) *http.Client {
 	client := cleanhttp.DefaultClient(params.opt...)
 
 	// start the builder with drainer if we have pooling ( its important to drain connections to be able to reclaim them )
-	builder := chains.NewChain(params.ctx, middlewares.Enable(params.pooling, middlewares.Drainer()))
+	builder := chains.NewChain(params.logger, middlewares.Enable(params.pooling, middlewares.Drainer()))
 
 	// add the cache if not nil
 	withCache := params.cache != nil
