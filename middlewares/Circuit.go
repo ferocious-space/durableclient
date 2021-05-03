@@ -97,8 +97,10 @@ func (x *CircuitMiddleware) Middleware() chains.Middleware {
 	return func(next http.RoundTripper) http.RoundTripper {
 		return chains.RoundTripFunc(
 			func(request *http.Request) (*http.Response, error) {
-				logr.FromContextOrDiscard(request.Context()).V(2).Info("middleware.Circuit().RoundTripper()")
-				log := logr.FromContextOrDiscard(request.Context()).WithName("circuit")
+				ctx := request.Context()
+				log := logr.FromContextOrDiscard(ctx).WithName("circuit")
+				log.V(2).Info("middleware.Circuit().RoundTripper()")
+
 				var err error
 				crc, err := x.Get(request.Host)
 				if err != nil {
@@ -111,31 +113,50 @@ func (x *CircuitMiddleware) Middleware() chains.Middleware {
 				rs := stats.RunStats(request.Host)
 				rsp := new(http.Response)
 				err = crc.Run(
-					request.Context(), func(ctx context.Context) error {
+					ctx, func(ctx context.Context) error {
 						var err error
-						rsp, err = next.RoundTrip(request.Clone(ctx))
-						if err != nil {
-							if redirectsErrorRe.MatchString(err.Error()) {
-								return &circuit.SimpleBadRequest{
-									Err: err,
+						hsResp := make(chan *http.Response, 1)
+						hsErr := make(chan error, 1)
+						go func() {
+							defer close(hsResp)
+							defer close(hsErr)
+							rsp, err = next.RoundTrip(request)
+							if err != nil {
+								if redirectsErrorRe.MatchString(err.Error()) {
+									hsErr <- &circuit.SimpleBadRequest{
+										Err: err,
+									}
 								}
-							}
-							if schemeErrorRe.MatchString(err.Error()) {
-								return &circuit.SimpleBadRequest{
-									Err: err,
+								if schemeErrorRe.MatchString(err.Error()) {
+									hsErr <- &circuit.SimpleBadRequest{
+										Err: err,
+									}
 								}
-							}
-							if _, ok := err.(x509.UnknownAuthorityError); ok {
-								return &circuit.SimpleBadRequest{
-									Err: err,
+								if _, ok := err.(x509.UnknownAuthorityError); ok {
+									hsErr <- &circuit.SimpleBadRequest{
+										Err: err,
+									}
 								}
+								hsErr <- err
 							}
-							return err
+							hsResp <- rsp
+						}()
+						select {
+						case r := <-hsResp:
+							rsp = r
+							return nil
+						case e := <-hsErr:
+							rsp = nil
+							return e
+						case <-ctx.Done():
+							rsp = nil
+							return ctx.Err()
 						}
-						return nil
 					},
 				)
-				rsp.Request = request
+				if rsp != nil {
+					rsp.Request = request.WithContext(ctx)
+				}
 				log.V(1).Info(
 					"Circuit",
 					"Name",
