@@ -42,7 +42,7 @@ func OptionAgent(agent string) ClientOptions {
 // OptionLogger adds default logger to the request context
 func OptionLogger(logger logr.Logger) ClientOptions {
 	return func(c *durableOption) {
-		c.ctx = logr.NewContext(c.ctx, logger)
+		c.logger = logger
 	}
 }
 
