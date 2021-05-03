@@ -88,6 +88,17 @@ func (r Middleware) ThenMiddleware(log logr.Logger, m Middleware) Chain {
 	return NewChain(log, r, m)
 }
 
+func logattach(log logr.Logger) Middleware {
+	return func(next http.RoundTripper) http.RoundTripper {
+		return RoundTripFunc(
+			func(request *http.Request) (*http.Response, error) {
+				ctx := logr.NewContext(request.Context(), log)
+				return next.RoundTrip(request.Clone(ctx))
+			},
+		)
+	}
+}
+
 type Chain struct {
 	middlewares []Middleware
 	log         logr.Logger
@@ -97,7 +108,7 @@ func NewChain(log logr.Logger, middlewares ...Middleware) Chain {
 	if log == nil {
 		log = logr.Discard()
 	}
-	return Chain{middlewares: append([]Middleware{}, middlewares...), log: log}
+	return Chain{middlewares: append([]Middleware{logattach(log)}, middlewares...), log: log}
 }
 
 func (c Chain) RoundTrip(req *http.Request) (*http.Response, error) {
