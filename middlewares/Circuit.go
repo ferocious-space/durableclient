@@ -12,6 +12,7 @@ import (
 	"github.com/cep21/circuit/v3/closers/hystrix"
 	"github.com/cep21/circuit/v3/metrics/rolling"
 	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 
 	"github.com/ferocious-space/durableclient/chains"
 )
@@ -91,6 +92,8 @@ func NewCircuitMiddleware(
 var (
 	redirectsErrorRe = regexp.MustCompile(`stopped after \d+ redirects\z`)
 	schemeErrorRe    = regexp.MustCompile(`unsupported protocol scheme`)
+	ErrClient4xx     = errors.New("client error")
+	ErrServer5xx     = errors.New("server error")
 )
 
 func (x *CircuitMiddleware) Middleware() chains.Middleware {
@@ -144,6 +147,13 @@ func (x *CircuitMiddleware) Middleware() chains.Middleware {
 						select {
 						case r := <-hsResp:
 							rsp = r
+							// client error
+							if rsp.StatusCode >= 400 {
+								return ErrClient4xx
+							}
+							if rsp.StatusCode >= 500 {
+								return ErrServer5xx
+							}
 							return nil
 						case e := <-hsErr:
 							rsp = nil
@@ -154,8 +164,47 @@ func (x *CircuitMiddleware) Middleware() chains.Middleware {
 						}
 					},
 				)
-				if rsp != nil {
-					rsp.Request = request.WithContext(ctx)
+
+				if err != nil {
+					// keep client errors counted only in circuit , dont propagate
+					if errors.Is(err, ErrClient4xx) || errors.Is(err, ErrServer5xx) {
+						log.V(1).Info(
+							"Circuit",
+							"Name",
+							crc.Name(),
+							"URI",
+							request.URL.RequestURI(),
+							"StatusCode",
+							rsp.StatusCode,
+							"L95p",
+							rs.Latencies.Snapshot().Percentile(0.95).String(),
+							"E",
+							rs.ErrFailures.RollingSum(),
+							"T",
+							rs.ErrTimeouts.RollingSum(),
+							"O",
+							crc.IsOpen(),
+						)
+						return rsp, nil
+					}
+					log.V(1).Info(
+						"Circuit",
+						"Name",
+						crc.Name(),
+						"URI",
+						request.URL.RequestURI(),
+						"Error",
+						err.Error(),
+						"L95p",
+						rs.Latencies.Snapshot().Percentile(0.95).String(),
+						"E",
+						rs.ErrFailures.RollingSum(),
+						"T",
+						rs.ErrTimeouts.RollingSum(),
+						"O",
+						crc.IsOpen(),
+					)
+					return nil, err
 				}
 				log.V(1).Info(
 					"Circuit",
@@ -172,9 +221,6 @@ func (x *CircuitMiddleware) Middleware() chains.Middleware {
 					"O",
 					crc.IsOpen(),
 				)
-				if err != nil {
-					return nil, err
-				}
 				return rsp, nil
 			},
 		)

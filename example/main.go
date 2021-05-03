@@ -15,7 +15,7 @@ func main() {
 	zaplog, _ := zap.NewDevelopment()
 	log := zapr.NewLogger(zaplog).WithName("main")
 
-	url := "https://esi.evetech.net/latest/characters/90126489/?datasource=tranquility"
+	url := "https://esi.evetech.net/latest/characters/901264898/?datasource=tranquility"
 
 	normalClient := durableclient.NewDurableClient(durableclient.OptionLogger(log.WithName("normal")))
 	cacheClient := durableclient.NewDurableClient(durableclient.OptionLogger(log.WithName("cached")), durableclient.OptionCache(LruCache.NewLRUCache(1<<20*50)))
