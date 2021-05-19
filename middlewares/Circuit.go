@@ -10,6 +10,7 @@ import (
 
 	"github.com/cep21/circuit/v3"
 	"github.com/cep21/circuit/v3/closers/hystrix"
+	"github.com/cep21/circuit/v3/metriceventstream"
 	"github.com/cep21/circuit/v3/metrics/rolling"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -23,7 +24,7 @@ var stats rolling.StatFactory
 var mGuard sync.Mutex
 
 func (x *CircuitMiddleware) Get(name string) (crc *circuit.Circuit, err error) {
-	crc = getManager().GetCircuit(name)
+	crc = getManager(x.stream).GetCircuit(name)
 	if crc != nil {
 		return crc, nil
 	}
@@ -31,7 +32,7 @@ func (x *CircuitMiddleware) Get(name string) (crc *circuit.Circuit, err error) {
 	cfg := x.cfg
 	stats.RunConfig = *x.scfg
 	cfg.Merge(stats.CreateConfig(name))
-	crc, err = getManager().CreateCircuit(name, cfg)
+	crc, err = getManager(x.stream).CreateCircuit(name, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -40,19 +41,31 @@ func (x *CircuitMiddleware) Get(name string) (crc *circuit.Circuit, err error) {
 }
 
 type CircuitMiddleware struct {
-	cfg  circuit.Config
-	scfg *rolling.RunStatsConfig
+	cfg    circuit.Config
+	scfg   *rolling.RunStatsConfig
+	stream bool
 }
 
-func getManager() *circuit.Manager {
+func getManager(stream bool) *circuit.Manager {
 	mGuard.Lock()
 	defer mGuard.Unlock()
 
 	oneManager.Do(
+
 		func() {
 			factory := hystrix.Factory{}
 			m = circuit.Manager{
 				DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{factory.Configure, stats.CreateConfig},
+			}
+			if stream {
+				stream := metriceventstream.MetricEventStream{
+					Manager:      &m,
+					TickDuration: 100 * time.Millisecond,
+				}
+				http.Handle("/hystrix.stream", &stream)
+				go func() {
+					stream.Start()
+				}()
 			}
 		},
 	)
@@ -63,6 +76,7 @@ func NewCircuitMiddleware(
 	closerConfig *hystrix.ConfigureCloser,
 	openerConfig *hystrix.ConfigureOpener,
 	statsConfig *rolling.RunStatsConfig,
+	stream bool,
 	maxConcurrentRequests int64,
 ) *CircuitMiddleware {
 	cfg := circuit.Config{
@@ -84,8 +98,9 @@ func NewCircuitMiddleware(
 	}
 
 	return &CircuitMiddleware{
-		cfg:  cfg,
-		scfg: statsConfig,
+		cfg:    cfg,
+		scfg:   statsConfig,
+		stream: stream,
 	}
 }
 

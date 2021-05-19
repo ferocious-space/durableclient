@@ -39,6 +39,7 @@ func NewDurableClient(opt ...ClientOptions) *http.Client {
 		retrier:               true,
 		numRetries:            3,
 		circuit:               true,
+		stream:                false,
 		maxConcurrentRequests: 50,
 
 		closerConfig: &hystrix.ConfigureCloser{
@@ -85,7 +86,7 @@ func NewDurableClient(opt ...ClientOptions) *http.Client {
 	builder = builder.ExtendWith(
 		middlewares.Enable(
 			params.circuit,
-			middlewares.NewCircuitMiddleware(params.closerConfig, params.openerConfig, params.statsConfig, params.maxConcurrentRequests).Middleware(),
+			middlewares.NewCircuitMiddleware(params.closerConfig, params.openerConfig, params.statsConfig, params.stream, params.maxConcurrentRequests).Middleware(),
 		),
 	)
 

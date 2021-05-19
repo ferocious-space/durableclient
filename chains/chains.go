@@ -47,10 +47,6 @@ func (f RoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 // Middleware represents an http client-side middleware.
 type Middleware func(http.RoundTripper) http.RoundTripper
 
-func (r Middleware) RoundTrip(req *http.Request) (*http.Response, error) {
-	return r(defaultClient().Transport).RoundTrip(req)
-}
-
 func (r Middleware) ThenClient(client *http.Client, clone bool) *http.Client {
 	if client == nil {
 		client = defaultClient()
@@ -93,7 +89,12 @@ func logattach(log logr.Logger) Middleware {
 		return RoundTripFunc(
 			func(request *http.Request) (*http.Response, error) {
 				ctx := logr.NewContext(request.Context(), log)
-				return next.RoundTrip(request.Clone(ctx))
+				clone := request.Clone(ctx)
+				rsp, err := next.RoundTrip(clone)
+				if rsp != nil {
+					rsp.Request = request
+				}
+				return rsp, err
 			},
 		)
 	}
@@ -111,9 +112,9 @@ func NewChain(log logr.Logger, middlewares ...Middleware) Chain {
 	return Chain{middlewares: append([]Middleware{logattach(log)}, middlewares...), log: log}
 }
 
-func (c Chain) RoundTrip(req *http.Request) (*http.Response, error) {
-	return c.ThenRoundTripper(defaultClient().Transport).RoundTrip(req)
-}
+//func (c Chain) RoundTrip(req *http.Request) (*http.Response, error) {
+//	return c.ThenRoundTripper(defaultClient().Transport).RoundTrip(req)
+//}
 
 func (c Chain) ThenRoundTripper(t http.RoundTripper) http.RoundTripper {
 	if t == nil {
@@ -149,5 +150,5 @@ func (c Chain) ExtendWith(middlewares ...Middleware) Chain {
 	newChain := make([]Middleware, 0, len(c.middlewares)+len(middlewares))
 	newChain = append(newChain, c.middlewares...)
 	newChain = append(newChain, middlewares...)
-	return Chain{middlewares: newChain, log: c.log}
+	return Chain{log: c.log, middlewares: newChain}
 }

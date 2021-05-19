@@ -19,6 +19,7 @@ type durableOption struct {
 	agent      string
 	pooling    bool
 	retrier    bool
+	stream     bool
 	numRetries int
 
 	circuit               bool
@@ -36,6 +37,13 @@ type ClientOptions func(c *durableOption)
 func OptionAgent(agent string) ClientOptions {
 	return func(c *durableOption) {
 		c.agent = agent
+	}
+}
+
+// OptionStream adds hystrix even stream to /hystrix.stream http.defaultservermux
+func OptionStream() ClientOptions {
+	return func(c *durableOption) {
+		c.stream = true
 	}
 }
 
