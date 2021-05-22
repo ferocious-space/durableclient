@@ -70,7 +70,7 @@ func NewDurableClient(opt ...ClientOptions) *http.Client {
 	client := cleanhttp.DefaultClient(params.opt...)
 
 	// start the builder with drainer if we have pooling ( its important to drain connections to be able to reclaim them )
-	builder := chains.NewChain(params.logger, middlewares.Websocket(), middlewares.Enable(params.pooling, middlewares.Drainer()))
+	builder := chains.NewChain(middlewares.Logger(params.logger), middlewares.Websocket(), middlewares.Enable(params.pooling, middlewares.Drainer()))
 
 	// add the cache if not nil
 	withCache := params.cache != nil

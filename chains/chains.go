@@ -1,6 +1,7 @@
 package chains
 
 import (
+	"context"
 	"net/http"
 	"net/http/cookiejar"
 	"sync"
@@ -41,7 +42,10 @@ type RoundTripFunc func(*http.Request) (*http.Response, error)
 
 // RoundTrip implements RoundTripper interface
 func (f RoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
-	return f(req)
+	if req.Context() == context.Background() {
+		return f(req)
+	}
+	return f(req.Clone(logr.NewContext(req.Context(), logr.WithCallDepth(logr.FromContextOrDiscard(req.Context()), 2))))
 }
 
 // Middleware represents an http client-side middleware.
@@ -81,40 +85,16 @@ func (r Middleware) ThenMiddleware(log logr.Logger, m Middleware) Chain {
 	if log == nil {
 		log = logr.Discard()
 	}
-	return NewChain(log, r, m)
-}
-
-func logattach(log logr.Logger) Middleware {
-	return func(next http.RoundTripper) http.RoundTripper {
-		return RoundTripFunc(
-			func(request *http.Request) (*http.Response, error) {
-				ctx := logr.NewContext(request.Context(), log)
-				clone := request.Clone(ctx)
-				rsp, err := next.RoundTrip(clone)
-				if rsp != nil {
-					rsp.Request = request
-				}
-				return rsp, err
-			},
-		)
-	}
+	return NewChain(r, m)
 }
 
 type Chain struct {
 	middlewares []Middleware
-	log         logr.Logger
 }
 
-func NewChain(log logr.Logger, middlewares ...Middleware) Chain {
-	if log == nil {
-		log = logr.Discard()
-	}
-	return Chain{middlewares: append([]Middleware{logattach(log)}, middlewares...), log: log}
+func NewChain(middlewares ...Middleware) Chain {
+	return Chain{middlewares: middlewares}
 }
-
-//func (c Chain) RoundTrip(req *http.Request) (*http.Response, error) {
-//	return c.ThenRoundTripper(defaultClient().Transport).RoundTrip(req)
-//}
 
 func (c Chain) ThenRoundTripper(t http.RoundTripper) http.RoundTripper {
 	if t == nil {
@@ -150,5 +130,5 @@ func (c Chain) ExtendWith(middlewares ...Middleware) Chain {
 	newChain := make([]Middleware, 0, len(c.middlewares)+len(middlewares))
 	newChain = append(newChain, c.middlewares...)
 	newChain = append(newChain, middlewares...)
-	return Chain{log: c.log, middlewares: newChain}
+	return Chain{middlewares: newChain}
 }
