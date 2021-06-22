@@ -50,7 +50,7 @@ func OptionStream() ClientOptions {
 // OptionLogger adds default logger to the request context
 func OptionLogger(logger logr.Logger) ClientOptions {
 	return func(c *durableOption) {
-		c.logger = logger
+		c.logger = logr.WithCallDepth(logger, 1)
 	}
 }
 
