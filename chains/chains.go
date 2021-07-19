@@ -45,7 +45,7 @@ func (f RoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	if req.Context() == context.Background() {
 		return f(req)
 	}
-	return f(req.Clone(logr.NewContext(req.Context(), logr.WithCallDepth(logr.FromContextOrDiscard(req.Context()), 2))))
+	return f(req.Clone(logr.NewContext(req.Context(), logr.FromContextOrDiscard(req.Context()).WithCallDepth(2))))
 }
 
 // Middleware represents an http client-side middleware.
@@ -81,12 +81,12 @@ func (r Middleware) DefaultRoundTripper() http.RoundTripper {
 	return r.ThenRoundTripper(nil)
 }
 
-func (r Middleware) ThenMiddleware(log logr.Logger, m Middleware) Chain {
-	if log == nil {
-		log = logr.Discard()
-	}
-	return NewChain(r, m)
-}
+//func (r Middleware) ThenMiddleware(log logr.LogSink, m Middleware) Chain {
+//	if log == nil {
+//		log = logr.Discard()
+//	}
+//	return NewChain(r, m)
+//}
 
 type Chain struct {
 	middlewares []Middleware

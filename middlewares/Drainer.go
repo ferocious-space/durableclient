@@ -16,7 +16,11 @@ func Drainer() chains.Middleware {
 		return chains.RoundTripFunc(
 			func(request *http.Request) (*http.Response, error) {
 				logr.FromContextOrDiscard(request.Context()).V(2).Info("middleware.Drainer().RoundTripper()")
-				log := logr.FromContext(request.Context()).WithName("drainer")
+				log, err := logr.FromContext(request.Context())
+				if err != nil {
+					return nil, err
+				}
+				log = log.WithName("drainer")
 				req, err := FromRequest(request)
 				if err != nil {
 					return nil, err
