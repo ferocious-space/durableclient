@@ -37,7 +37,7 @@ func defaultClient() *http.Client {
 	return httpClient
 }
 
-// RoundTripFunc wraps a func to make it into an http.RoundTripper. Similar to http.HandleFunc.
+// RoundTripFunc wraps a func to make it into a http.RoundTripper. Similar to http.HandleFunc.
 type RoundTripFunc func(*http.Request) (*http.Response, error)
 
 // RoundTrip implements RoundTripper interface
@@ -48,7 +48,7 @@ func (f RoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req.Clone(logr.NewContext(req.Context(), logr.FromContextOrDiscard(req.Context()).WithCallDepth(2))))
 }
 
-// Middleware represents an http client-side middleware.
+// Middleware represents a http client-side middleware.
 type Middleware func(http.RoundTripper) http.RoundTripper
 
 func (r Middleware) ThenClient(client *http.Client, clone bool) *http.Client {

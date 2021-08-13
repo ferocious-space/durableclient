@@ -35,7 +35,6 @@ func Drainer() chains.Middleware {
 					} else {
 						req.Body = ioutil.NopCloser(reqBody)
 					}
-
 				}
 				rsp, err := next.RoundTrip(req.Request)
 				if err != nil {

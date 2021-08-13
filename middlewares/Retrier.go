@@ -111,7 +111,8 @@ func DefaultRetryPolicy(ctx context.Context, rsp *http.Response, err error) (boo
 		if schemeErrorRe.MatchString(err.Error()) {
 			return false, err
 		}
-		if _, ok := err.(x509.UnknownAuthorityError); ok {
+		var uae x509.UnknownAuthorityError
+		if ok := errors.Is(err, uae); ok {
 			return false, err
 		}
 		return true, nil
@@ -136,8 +137,8 @@ func DefaultBackoff(min, max time.Duration, attemptNum int, resp *http.Response)
 		}
 	}
 
-	rand := rand.New(rand.NewSource(int64(time.Now().Nanosecond())))
-	jitter := rand.Float64() * float64(max-min)
+	rnd := rand.New(rand.NewSource(int64(time.Now().Nanosecond())))
+	jitter := rnd.Float64() * float64(max-min)
 	jitterMin := int64(jitter) + int64(min)
 	return time.Duration(jitterMin * int64(attemptNum))
 }

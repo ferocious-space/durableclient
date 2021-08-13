@@ -150,7 +150,8 @@ func (x *CircuitMiddleware) Middleware() chains.Middleware {
 										Err: err,
 									}
 								}
-								if _, ok := err.(x509.UnknownAuthorityError); ok {
+								var ua x509.UnknownAuthorityError
+								if ok := errors.Is(err, ua); ok {
 									hsErr <- &circuit.SimpleBadRequest{
 										Err: err,
 									}
