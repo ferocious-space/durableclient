@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/cep21/circuit/v3 v3.2.0
-	github.com/ferocious-space/httpcache v0.0.0-20210825125604-773c6473d74d
+	github.com/ferocious-space/httpcache v0.0.0-20210825132342-303dedb729fd
 	github.com/go-logr/logr v1.1.0
 	github.com/go-logr/zapr v1.0.0
 	github.com/pkg/errors v0.9.1
