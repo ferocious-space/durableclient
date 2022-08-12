@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"io/ioutil"
 	"net/http"
 
 	"github.com/pkg/errors"
@@ -145,5 +144,5 @@ func FromRequest(req *http.Request) (*Request, error) {
 
 func DrainReader(body io.ReadCloser) {
 	defer body.Close()
-	_, _ = ioutil.ReadAll(body)
+	_, _ = io.ReadAll(body)
 }

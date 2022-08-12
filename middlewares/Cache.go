@@ -16,8 +16,10 @@ func Cache(cache httpcache.Cache) chains.Middleware {
 		transport.Transport = next
 		return chains.RoundTripFunc(
 			func(request *http.Request) (*http.Response, error) {
-				logr.FromContextOrDiscard(request.Context()).V(2).Info("middleware.Cache().RoundTripper()", "type", fmt.Sprintf("%T", cache))
-				return transport.RoundTrip(request.Clone(logr.NewContext(request.Context(), logr.FromContextOrDiscard(request.Context()).WithCallDepth(5))))
+				h, l := logr.FromContextOrDiscard(request.Context()).WithCallStackHelper()
+				h()
+				l.V(2).Info("middleware.Cache().RoundTripper()", "type", fmt.Sprintf("%T", cache))
+				return transport.RoundTrip(request.Clone(logr.NewContext(request.Context(), l.WithCallDepth(2))))
 			},
 		)
 	}

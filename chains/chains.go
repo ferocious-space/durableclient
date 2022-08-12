@@ -45,7 +45,9 @@ func (f RoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	if req.Context() == context.Background() {
 		return f(req)
 	}
-	return f(req.Clone(logr.NewContext(req.Context(), logr.FromContextOrDiscard(req.Context()).WithCallDepth(2))))
+	h, l := logr.FromContextOrDiscard(req.Context()).WithCallStackHelper()
+	h()
+	return f(req.Clone(logr.NewContext(req.Context(), l.WithCallDepth(2))))
 }
 
 // Middleware represents a http client-side middleware.

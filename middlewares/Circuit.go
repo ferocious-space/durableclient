@@ -116,7 +116,8 @@ func (x *CircuitMiddleware) Middleware() chains.Middleware {
 		return chains.RoundTripFunc(
 			func(request *http.Request) (*http.Response, error) {
 				ctx := request.Context()
-				log := logr.FromContextOrDiscard(ctx).WithName("circuit")
+				h, log := logr.FromContextOrDiscard(ctx).WithName("circuit").WithCallStackHelper()
+				h()
 				log.V(2).Info("middleware.Circuit().RoundTripper()")
 
 				var err error

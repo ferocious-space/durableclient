@@ -14,7 +14,9 @@ func Websocket() chains.Middleware {
 		return chains.RoundTripFunc(
 			func(request *http.Request) (*http.Response, error) {
 				if request.Header.Get("Upgrade") == "websocket" && request.Header.Get("Connection") == "Upgrade" {
-					logr.FromContextOrDiscard(request.Context()).V(2).Info("middleware.Websocket().RoundTripper()")
+					h, l := logr.FromContextOrDiscard(request.Context()).WithCallStackHelper()
+					h()
+					l.V(2).Info("middleware.Websocket().RoundTripper()")
 					return cleanhttp.DefaultClient().Transport.RoundTrip(request)
 				}
 				return next.RoundTrip(request)
