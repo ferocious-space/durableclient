@@ -2,7 +2,7 @@ module github.com/ferocious-space/durableclient
 
 go 1.20
 
-retract [v0.0.0,v0.7.2]
+retract [v0.0.0,v0.7.3]
 
 require (
 	github.com/cep21/circuit/v3 v3.2.2
