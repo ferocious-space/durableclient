@@ -14,20 +14,21 @@ import (
 	"github.com/ferocious-space/durableclient/middlewares"
 )
 
-//NewDurableClient creates default opinionated client
+// NewDurableClient creates default opinionated client
 //
-//params := &durableOption{
-//		cache:         nil,
-//		logger:        logr.Discard(),
-//		agent:         "https://github.com/ferocious-space/durableclient",
-//		pooling:       false,
-//		retrier:       true,
-//		numRetries:    3,
-//		circuit:       true,
-//		maxErrors:     80,
-//      ErrorThresholdPercentage: 100,
-//		rollingWindow: time.Second * 60,
-//	}
+//	params := &durableOption{
+//			cache:         nil,
+//			logger:        logr.Discard(),
+//			agent:         "https://github.com/ferocious-space/durableclient",
+//			pooling:       false,
+//			retrier:       true,
+//			numRetries:    3,
+//			circuit:       true,
+//			maxErrors:     80,
+//	     ErrorThresholdPercentage: 100,
+//			rollingWindow: time.Second * 60,
+//		}
+//
 // use ClientOptions to change them
 func NewDurableClient(opt ...ClientOptions) *http.Client {
 
@@ -69,7 +70,7 @@ func NewDurableClient(opt ...ClientOptions) *http.Client {
 	}
 	client := cleanhttp.DefaultClient(params.opt...)
 
-	// start the builder with drainer if we have pooling ( its important to drain connections to be able to reclaim them )
+	// start the builder with drainer if we have pooling ( It's important to drain connections to be able to reclaim them )
 	builder := chains.NewChain(middlewares.Logger(params.logger), middlewares.Websocket(), middlewares.Enable(params.pooling, middlewares.Drainer()))
 
 	// add the cache if not nil

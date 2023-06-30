@@ -14,7 +14,7 @@ func Logger(log logr.Logger) chains.Middleware {
 			func(request *http.Request) (*http.Response, error) {
 				h, l := log.WithCallStackHelper()
 				h()
-				return next.RoundTrip(request.Clone(logr.NewContext(request.Context(), l)))
+				return next.RoundTrip(request.WithContext(logr.NewContext(request.Context(), l)))
 			},
 		)
 	}

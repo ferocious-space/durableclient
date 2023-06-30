@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/x509"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -36,7 +35,6 @@ func Retrier(maxRetry int) chains.Middleware {
 
 				for i := 0; ; i++ {
 					attempt++
-
 					if request.Body != nil {
 						body, err := request.body()
 						if err != nil {
@@ -45,7 +43,7 @@ func Retrier(maxRetry int) chains.Middleware {
 						if c, ok := body.(io.ReadCloser); ok {
 							request.Body = c
 						} else {
-							request.Body = ioutil.NopCloser(body)
+							request.Body = io.NopCloser(body)
 						}
 					}
 
@@ -63,11 +61,6 @@ func Retrier(maxRetry int) chains.Middleware {
 						break
 					}
 
-					// drain the body of response
-					if errRT == nil {
-						DrainReader(rsp.Body)
-					}
-
 					when := DefaultBackoff(time.Duration(300)*time.Millisecond, time.Duration(3)*time.Second, i, rsp)
 					log.V(1).Error(errRT, "retry", "in", when.String(), "uri", request.URL.RequestURI())
 
@@ -76,9 +69,7 @@ func Retrier(maxRetry int) chains.Middleware {
 						return nil, request.Context().Err()
 					case <-time.After(when):
 					}
-
-					httpReq := *request.Request
-					request.Request = &httpReq
+					request = request.Clone(request.Context())
 				}
 				if errRT == nil && checkErr == nil && !shouldRetry {
 					return rsp, nil
@@ -87,10 +78,6 @@ func Retrier(maxRetry int) chains.Middleware {
 				err = errRT
 				if checkErr != nil {
 					err = checkErr
-				}
-
-				if rsp != nil {
-					DrainReader(rsp.Body)
 				}
 
 				if err == nil {
@@ -113,8 +100,10 @@ func DefaultRetryPolicy(ctx context.Context, rsp *http.Response, err error) (boo
 		if schemeErrorRe.MatchString(err.Error()) {
 			return false, err
 		}
-		var uae x509.UnknownAuthorityError
-		if ok := errors.Is(err, uae); ok {
+		if ok := errors.Is(err, x509.UnknownAuthorityError{}); ok {
+			return false, err
+		}
+		if ok := errors.Is(err, context.DeadlineExceeded); ok {
 			return false, err
 		}
 		return true, nil

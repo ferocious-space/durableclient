@@ -3,7 +3,6 @@ package middlewares
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"net/http"
 
 	"github.com/go-logr/logr"
@@ -30,7 +29,7 @@ func Drainer() chains.Middleware {
 					if c, ok := reqBody.(io.ReadCloser); ok {
 						req.Body = c
 					} else {
-						req.Body = ioutil.NopCloser(reqBody)
+						req.Body = io.NopCloser(reqBody)
 					}
 				}
 				rsp, err := next.RoundTrip(req.Request)
@@ -46,7 +45,7 @@ func Drainer() chains.Middleware {
 						return nil, err
 					}
 					rsp.Body.Close()
-					rsp.Body = ioutil.NopCloser(bodyBuffer)
+					rsp.Body = io.NopCloser(bodyBuffer)
 				}
 				return rsp, nil
 			},

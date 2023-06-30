@@ -20,14 +20,11 @@ type LenReader interface {
 	Len() int
 }
 
-func (r *Request) WithContext(ctx context.Context) *Request {
-	r.Request = r.Request.WithContext(ctx)
-	return r
-}
-
 func (r *Request) Clone(ctx context.Context) *Request {
-	r.Request = r.Request.Clone(ctx)
-	return r
+	return &Request{
+		body:    r.body,
+		Request: r.Request.Clone(ctx),
+	}
 }
 
 func (r *Request) SetBody(body interface{}) error {
@@ -38,22 +35,6 @@ func (r *Request) SetBody(body interface{}) error {
 	r.body = reader
 	r.ContentLength = length
 	return nil
-}
-
-func (r *Request) Bytes() ([]byte, error) {
-	if r.body == nil {
-		return nil, nil
-	}
-	b, err := r.body()
-	if err != nil {
-		return nil, err
-	}
-	buf := new(bytes.Buffer)
-	_, err = buf.ReadFrom(b)
-	if err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
 }
 
 func getReader(rawBody interface{}) (BodyFN, int64, error) {
@@ -85,14 +66,12 @@ func getReader(rawBody interface{}) (BodyFN, int64, error) {
 			c.Close()
 		}
 	case []byte:
-
 		buf := body
 		reader = func() (io.Reader, error) {
 			return bytes.NewReader(buf), nil
 		}
 		length = int64(len(buf))
 	case *bytes.Buffer:
-
 		buf := body
 		reader = func() (io.Reader, error) {
 			return bytes.NewReader(buf.Bytes()), nil
@@ -100,7 +79,6 @@ func getReader(rawBody interface{}) (BodyFN, int64, error) {
 		length = int64(buf.Len())
 
 	case *bytes.Reader:
-
 		bodyBuffer := new(bytes.Buffer)
 		n, err := io.Copy(bodyBuffer, body)
 		if err != nil {
@@ -110,9 +88,7 @@ func getReader(rawBody interface{}) (BodyFN, int64, error) {
 			return bodyBuffer, nil
 		}
 		length = n
-
 	case io.Reader:
-
 		bodyBuffer := new(bytes.Buffer)
 		n, err := io.Copy(bodyBuffer, body)
 		if err != nil {
@@ -122,27 +98,21 @@ func getReader(rawBody interface{}) (BodyFN, int64, error) {
 			return bodyBuffer, nil
 		}
 		length = n
-
 	case nil:
 
 	default:
 		return nil, 0, errors.Errorf("cannot handle %T", rawBody)
 	}
+	switch body := rawBody.(type) {
+	case io.Closer:
+		body.Close()
+	default:
+
+	}
 	return reader, length, nil
 }
 
 func FromRequest(req *http.Request) (*Request, error) {
-	reader, _, err := getReader(req.Body)
-	if err != nil {
-		return nil, err
-	}
-	return &Request{
-		body:    reader,
-		Request: req,
-	}, nil
-}
-
-func DrainReader(body io.ReadCloser) {
-	defer body.Close()
-	_, _ = io.ReadAll(body)
+	r := &Request{Request: req}
+	return r, r.SetBody(req.Body)
 }

@@ -1,15 +1,15 @@
 package main
 
 import (
+	"bytes"
+	"github.com/ferocious-space/httpcache/LruCache"
+	"github.com/go-logr/zapr"
+	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"runtime"
 	"time"
-
-	"github.com/ferocious-space/httpcache/LruCache"
-	"github.com/go-logr/zapr"
-	"go.uber.org/zap"
 
 	"github.com/ferocious-space/durableclient"
 )
@@ -56,7 +56,7 @@ func main() {
 			if ec != nil {
 				log.Error(ec, "Get")
 			} else {
-				b, _ = io.Copy(ioutil.Discard, rc.Body)
+				b, _ = io.Copy(io.Discard, rc.Body)
 				log.Info("data", "bytes", b)
 				_ = rc.Body.Close()
 			}
@@ -66,7 +66,15 @@ func main() {
 			if ec != nil {
 				log.Error(ec, "Get")
 			} else {
-				b, _ = io.Copy(ioutil.Discard, rc.Body)
+				b, _ = io.Copy(io.Discard, rc.Body)
+				log.Info("data", "bytes", b)
+				_ = rc.Body.Close()
+			}
+			rc, ec = cacheClient.Post("https://esi.evetech.net/latest/universe/ids/?datasource=tranquility&language=en", "application/json", bytes.NewBufferString("[ \"CCP Zoetrope\"]"))
+			if ec != nil {
+				log.Error(ec, "Get")
+			} else {
+				b, _ = io.Copy(io.Discard, rc.Body)
 				log.Info("data", "bytes", b)
 				_ = rc.Body.Close()
 			}
